@@ -10,6 +10,7 @@ executable testing-system
     other-modules:    Tester
 
     build-depends:    base ^>=4.16.4.0
+                    , mtl
                     , bytestring
                     , text
                     , time
@@ -23,3 +24,7 @@ executable testing-system
     hs-source-dirs:   app
 
     default-language: Haskell2010
+
+    ghc-options:      -Wall -Wextra
+
+    default-extensions: TupleSections

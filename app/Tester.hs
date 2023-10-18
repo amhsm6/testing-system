@@ -1,18 +1,28 @@
+{-# LANGUAGE MultiParamTypeClasses #-} 
+{-# LANGUAGE FlexibleInstances #-} 
+{-# LANGUAGE UndecidableInstances #-}
+
 module Tester where
 
+import Prelude hiding (log)
 import Control.Monad
-import Control.Monad.IO.Class
+import Control.Monad.Writer
+import Data.List (singleton)
 import Data.Time.Clock.POSIX
+import System.IO
 import System.Process
+import System.Exit hiding (die)
 import System.Directory
 import System.FilePath
 
 newtype EitherT m a b = EitherT (m (Either a b))
 
+runEitherT :: EitherT m a b -> m (Either a b)
+runEitherT (EitherT m) = m
+
 instance Monad m => Monad (EitherT m a) where
     return = pure
-    (EitherT m) >>= g = EitherT $ m >>= either (pure . Left) (unpack . g)
-        where unpack (EitherT x) = x
+    (EitherT m) >>= g = EitherT $ m >>= either (pure . Left) (runEitherT . g)
 
 instance Monad m => Applicative (EitherT m a) where
     pure = EitherT . pure . Right
@@ -24,6 +34,11 @@ instance Monad m => Functor (EitherT m a) where
 instance MonadIO m => MonadIO (EitherT m a) where
     liftIO io = EitherT $ liftIO io >>= pure . Right
 
+instance MonadWriter w m => MonadWriter w (EitherT m a) where
+    tell w = EitherT $ tell w >>= pure . Right
+    listen (EitherT m) = EitherT $ listen m >>= \(e, w) -> pure $ e >>= Right . (,w)
+    pass (EitherT m) = EitherT $ m >>= either (pure . Left) (pass . pure >=> pure . Right)
+
 data Test = TestGeneric String
           | TestSimple Language [(String, String)]
           | TestCustom String String
@@ -32,14 +47,26 @@ data Language = Haskell | C | Cpp | Python
 
 data TestError = TestNotFound
                | TestGenericFailed
-               | TestSimpleFailed [String]
-               | TestSimpleCompileError String
-               | TestCustomFailed String
+               | TestSimpleCompileError
+               | TestSimpleFailed
+               | TestCustomFailed
+               deriving Show
 
-type Tester = EitherT IO TestError
+type TestLogs = [String]
+
+type Tester = EitherT (WriterT TestLogs IO) TestError
+
+runTester :: Tester a -> IO (Either TestError a, TestLogs)
+runTester = runWriterT . runEitherT
 
 die :: TestError -> Tester a
-die = EitherT . pure . Left
+die err = EitherT $ WriterT $ pure (Left err, [])
+
+finally :: Tester a -> Tester b -> Tester a
+finally m mFinally = m >>= \x -> mFinally >> pure x
+
+log :: String -> Tester ()
+log = tell . singleton
 
 test :: Test -> String -> Tester ()
 test (TestGeneric output) input = unless (input == output) $ die TestGenericFailed
@@ -48,25 +75,32 @@ test (TestCustom cmd output) input = runCustomTest cmd input output
 
 execProgram :: Language -> String -> [(String, String)] -> Tester ()
 execProgram lang input subtests = do
-    filename <- ("tmp"</>) . (show :: Int -> FilePath) . round <$> liftIO getPOSIXTime
+    filename <- liftIO getPOSIXTime >>= pure . ("tmp"</>) . (show :: Int -> FilePath) . round
     let (source, compile, run, clean) = options lang filename
     liftIO $ writeFile source input
 
-    case compile of
-        [] -> pure ()
-        (prog:args) -> do
-            liftIO $ createProcess $ proc prog args
-            pure ()
+    finally (liftIO $ mapM_ removeFile clean) $ do
+        case compile of
+            [] -> pure ()
+            (prog:args) -> do
+                let process = (proc prog args){ std_out = CreatePipe, std_err = CreatePipe }
+                (_, mbStdout, mbStderr, handle) <- liftIO $ createProcess process
+                let stdout = maybe undefined id mbStdout
+                    stderr = maybe undefined id mbStderr
 
-    case run of
-        [] -> pure ()
-        (prog:args) -> do
-            liftIO $ createProcess $ proc prog args
-            pure ()
+                exitCode <- liftIO $ waitForProcess handle
+                case exitCode of
+                    ExitSuccess -> liftIO (hGetContents stdout) >>= log
+                    ExitFailure x -> do
+                        let msg = "Program finished with exit code " ++ show x
+                        liftIO (hGetContents stderr) >>= log . (++msg)
+                        die TestSimpleCompileError
 
-    case clean of
-        [] -> pure ()
-        files -> liftIO $ mapM_ removeFile files
+        case run of
+            [] -> pure ()
+            (prog:args) -> do
+                liftIO $ createProcess $ proc prog args
+                pure ()
 
 options :: Language -> String -> (String, [String], [String], [String])
 options lang filename = (source, compile lang, run lang, clean lang)
