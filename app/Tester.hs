@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE MultiParamTypeClasses #-} 
 {-# LANGUAGE FlexibleInstances #-} 
 {-# LANGUAGE UndecidableInstances #-}
@@ -7,7 +8,7 @@ module Tester where
 import Prelude hiding (log)
 import Control.Monad
 import Control.Monad.Writer
-import Data.List (singleton)
+import Control.Exception
 import Data.Time.Clock.POSIX
 import System.IO
 import System.Process
@@ -62,11 +63,17 @@ runTester = runWriterT . runEitherT
 die :: TestError -> Tester a
 die err = EitherT $ WriterT $ pure (Left err, [])
 
-finally :: Tester a -> Tester b -> Tester a
-finally m mFinally = m >>= \x -> mFinally >> pure x
+finallyTester :: Tester a -> Tester b -> Tester b
+finallyTester mFinally m = do
+    (e, logs) <- liftIO $ runTester m
+    tell logs
+    mFinally
+    case e of
+        Left err -> die err
+        Right x -> pure x
 
 log :: String -> Tester ()
-log = tell . singleton
+log x = tell [x]
 
 test :: Test -> String -> Tester ()
 test (TestGeneric output) input = unless (input == output) $ die TestGenericFailed
@@ -79,7 +86,7 @@ execProgram lang input subtests = do
     let (source, compile, run, clean) = options lang filename
     liftIO $ writeFile source input
 
-    finally (liftIO $ mapM_ removeFile clean) $ do
+    finallyTester (cleanup clean) $ do
         case compile of
             [] -> pure ()
             (prog:args) -> do
@@ -90,17 +97,34 @@ execProgram lang input subtests = do
 
                 exitCode <- liftIO $ waitForProcess handle
                 case exitCode of
-                    ExitSuccess -> liftIO (hGetContents stdout) >>= log
+                    ExitSuccess -> liftIO (hGetContents stdout) >>= log . (++"Compile ok")
                     ExitFailure x -> do
-                        let msg = "Program finished with exit code " ++ show x
+                        let msg = "Compile error. Program finished with exit code " ++ show x
                         liftIO (hGetContents stderr) >>= log . (++msg)
                         die TestSimpleCompileError
 
         case run of
             [] -> pure ()
-            (prog:args) -> do
-                liftIO $ createProcess $ proc prog args
-                pure ()
+            (prog:args) -> forM_ subtests $ \(x, y) -> do
+                let process = (proc prog args){ std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe }
+                (mbStdin, mbStdout, mbStderr, handle) <- liftIO $ createProcess process
+                let stdin = maybe undefined id mbStdin
+                    stdout = maybe undefined id mbStdout
+                    stderr = maybe undefined id mbStderr
+
+                exitCode <- liftIO $ hPutStrLn stdin x >> hFlush stdin >> waitForProcess handle
+                case exitCode of
+                    ExitSuccess -> do
+                        y' <- liftIO $ hGetContents stdout
+                        unless (y == y') $ log "Wrong answer" >> die TestSimpleFailed
+                        log "Ok"
+                    ExitFailure code -> do
+                        let msg = "Runtime error. Program finished with exit code " ++ show code
+                        liftIO (hGetContents stderr) >>= log . (++msg)
+                        die TestSimpleFailed
+
+cleanup :: [String] -> Tester ()
+cleanup = liftIO . mapM_ (void . try @IOException . removeFile)
 
 options :: Language -> String -> (String, [String], [String], [String])
 options lang filename = (source, compile lang, run lang, clean lang)
