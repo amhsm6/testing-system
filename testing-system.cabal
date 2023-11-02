@@ -8,11 +8,13 @@ executable testing-system
     main-is:          Main.hs
 
     other-modules:    Tester
-                      Control.Monad.EitherT
+                      Control.Monad.Either
 
     build-depends:    base ^>=4.16.4.0
+                    , stm
                     , mtl
                     , bytestring
+                    , utf8-string
                     , text
                     , time
                     , process

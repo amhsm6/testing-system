@@ -1,6 +1,10 @@
 module Main where
 
 import Control.Monad
+import Control.Concurrent.STM
+import Control.Concurrent
+import qualified Data.ByteString.Lazy as B
+import qualified Data.ByteString.Lazy.UTF8 as B
 import qualified Data.Text as T
 import Network.HTTP.Types
 import Network.Wai
@@ -8,8 +12,23 @@ import Network.Wai.Handler.Warp
 
 import Tester
 
+logger :: TVar TestLogs -> IO ()
+logger logs = do
+    read <- atomically $ newTVar 0
+    void $ forkIO $ forever $ do
+        x <- atomically $ do
+            x <- readTVar logs
+            y <- readTVar read
+            check $ length x > y
+            writeTVar read $ length x
+            pure x
+        print x
+
 main :: IO ()
 main = do
-    putStrLn "Server is running on port 8080"
-    run 8080 $ \req resp -> do
-        undefined
+    logs <- atomically $ newTVar []
+    logger logs
+
+    let foo = test (TestSimple C $ (map (\x -> (show x, show $ x * 2)) [1..10]) ++ [("1", "")]) $
+                  "int main(void) { int x; scanf(\"%d\", &x); usleep(1000000); printf(\"%d\", x * 2); return 0; }"
+    runTester logs foo >>= print

@@ -4,48 +4,52 @@ module Tester where
 
 import Prelude hiding (log)
 import Control.Monad
-import Control.Monad.Writer
-import Control.Monad.EitherT
+import Control.Monad.Reader
+import Control.Monad.Either
+import Control.Concurrent.STM
 import Control.Exception (try, IOException)
-import Data.Time.Clock.POSIX
+import Data.Time.Clock.POSIX (getPOSIXTime)
 import System.IO (hGetContents, hPutStrLn, hFlush)
 import System.Process
-import System.Exit hiding (die)
 import System.Directory
 import System.FilePath
+import System.Exit hiding (die)
+
+type Tester = EitherT TestError (ReaderT (TVar TestLogs) IO)
+
+type TestLogs = [String]
+
+data TestError = TestGenericFailed
+               | TestSimpleCompileError
+               | TestSimpleFailed
+               | TestCustomFailed
+               deriving Show
+
+runTester :: TVar TestLogs -> Tester a -> IO (Either TestError a)
+runTester logs m = runReaderT (runEitherT m) logs
+
+die :: TestError -> Tester a
+die = EitherT . ReaderT . const . pure . Left
+
+log :: String -> Tester ()
+log x = do
+    logs <- ask
+    liftIO $ atomically $ modifyTVar logs (++[x])
+
+finallyTester :: Tester a -> Tester b -> Tester b
+finallyTester mFinally m = do
+    logs <- ask
+    e <- liftIO $ runTester logs m
+    mFinally
+    case e of
+        Left err -> die err
+        Right x -> pure x
 
 data Test = TestGeneric String
           | TestSimple Language [(String, String)]
           | TestCustom String String
 
 data Language = Haskell | C | Cpp | Python
-
-data TestError = TestGenericFailed
-               | TestSimpleCompileError
-               | TestSimpleFailed
-               | TestCustomFailed
-
-type TestLogs = [String]
-
-type Tester = EitherT (WriterT TestLogs IO) TestError
-
-runTester :: Tester a -> IO (Either TestError a, TestLogs)
-runTester = runWriterT . runEitherT
-
-die :: TestError -> Tester a
-die err = EitherT $ WriterT $ pure (Left err, [])
-
-finallyTester :: Tester a -> Tester b -> Tester b
-finallyTester mFinally m = do
-    (e, logs) <- liftIO $ runTester m
-    tell logs
-    mFinally
-    case e of
-        Left err -> die err
-        Right x -> pure x
-
-log :: String -> Tester ()
-log x = tell [x]
 
 test :: Test -> String -> Tester ()
 test (TestGeneric output) input = unless (input == output) $ die TestGenericFailed
@@ -55,11 +59,11 @@ test (TestCustom cmd output) input = runCustomTest cmd input output
 execProgram :: Language -> String -> [(String, String)] -> Tester ()
 execProgram lang input subtests = do
     filename <- liftIO getPOSIXTime >>= pure . ("tmp"</>) . (show :: Int -> FilePath) . round
-    let (source, compile, run, clean) = options lang filename
+    let (source, compileOptions, runOptions, cleanOptions) = options lang filename
     liftIO $ writeFile source input
 
-    finallyTester (cleanup clean) $ do
-        case compile of
+    finallyTester (cleanup cleanOptions) $ do
+        case compileOptions of
             [] -> pure ()
             (prog:args) -> do
                 let process = (proc prog args){ std_out = CreatePipe, std_err = CreatePipe }
@@ -75,7 +79,7 @@ execProgram lang input subtests = do
                         liftIO (hGetContents stderr) >>= log . (++msg)
                         die TestSimpleCompileError
 
-        case run of
+        case runOptions of
             [] -> pure ()
             (prog:args) -> forM_ subtests $ \(x, y) -> do
                 let process = (proc prog args){ std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe }
