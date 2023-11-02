@@ -125,4 +125,20 @@ options lang filename = (source, compile lang, run lang, clean lang)
           clean Python = [source]
 
 runCustomTest :: String -> String -> String -> Tester ()
-runCustomTest cmd input output = undefined
+runCustomTest cmd input output = do
+    let process = (proc cmd []){ std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe }
+    (mbStdin, mbStdout, mbStderr, handle) <- liftIO $ createProcess process
+    let stdin = maybe undefined id mbStdin
+        stdout = maybe undefined id mbStdout
+        stderr = maybe undefined id mbStderr
+
+    exitCode <- liftIO $ hPutStrLn stdin input >> hFlush stdin >> waitForProcess handle
+    case exitCode of
+        ExitSuccess -> do
+            output' <- liftIO $ hGetContents stdout
+            unless (output == output') $ log "Wrong answer" >> die TestCustomFailed
+            log "Ok"
+        ExitFailure code -> do
+            let msg = "Runtime error. Program finished with exit code " ++ show code
+            liftIO (hGetContents stderr) >>= log . (++msg)
+            die TestCustomFailed

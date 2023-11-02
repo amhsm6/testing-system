@@ -14,13 +14,13 @@ import Tester
 
 logger :: TVar TestLogs -> IO ()
 logger logs = do
-    read <- atomically $ newTVar 0
+    processed <- atomically $ newTVar 0
     void $ forkIO $ forever $ do
         x <- atomically $ do
             x <- readTVar logs
-            y <- readTVar read
+            y <- readTVar processed
             check $ length x > y
-            writeTVar read $ length x
+            writeTVar processed $ length x
             pure x
         print x
 
