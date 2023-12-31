@@ -1,0 +1,4 @@
+GET /courses
+GET /course?id=COURSE_ID
+GET /problem?id=PROBLEM_ID
+POST /submit?id=PROBLEM_ID

@@ -6,10 +6,7 @@ module Control.Monad.Either where
 
 import Control.Monad.Reader
 
-newtype EitherT e m a = EitherT (m (Either e a))
-
-runEitherT :: EitherT e m a -> m (Either e a)
-runEitherT (EitherT m) = m
+newtype EitherT e m a = EitherT { runEitherT :: m (Either e a) }
 
 instance Monad m => Monad (EitherT e m) where
     return = pure

@@ -9,7 +9,7 @@ import Control.Monad.Either
 import Control.Concurrent.STM
 import Control.Exception (try, IOException)
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import System.IO (hGetContents, hPutStrLn, hFlush)
+import System.IO
 import System.Process
 import System.Directory
 import System.FilePath
@@ -17,13 +17,13 @@ import System.Exit hiding (die)
 
 type Tester = EitherT TestError (ReaderT (TVar TestLogs) IO)
 
-type TestLogs = [String]
-
 data TestError = TestGenericFailed
                | TestSimpleCompileError
                | TestSimpleFailed
                | TestCustomFailed
                deriving Show
+
+type TestLogs = [String]
 
 runTester :: TVar TestLogs -> Tester a -> IO (Either TestError a)
 runTester logs m = runReaderT (runEitherT m) logs
@@ -36,11 +36,11 @@ log x = do
     logs <- ask
     liftIO $ atomically $ modifyTVar logs (++[x])
 
-finallyTester :: Tester a -> Tester b -> Tester b
-finallyTester mFinally m = do
+finally :: Tester a -> Tester b -> Tester b
+finally mfin m = do
     logs <- ask
     e <- liftIO $ runTester logs m
-    mFinally
+    mfin
     case e of
         Left err -> die err
         Right x -> pure x
@@ -56,13 +56,38 @@ test (TestGeneric output) input = unless (input == output) $ die TestGenericFail
 test (TestSimple lang subtests) input = execProgram lang input subtests 
 test (TestCustom cmd output) input = runCustomTest cmd input output
 
+options :: Language -> String -> (String, [String], [String], [String])
+options lang filename = (source, compile lang, run lang, clean lang)
+    where source = filename <.> ext lang
+
+          ext Haskell = "hs"
+          ext C = "c"
+          ext Cpp = "cpp"
+          ext Python = "py"
+
+          compile Haskell = ["ghc", "-o", filename, source]
+          compile C = ["gcc", "-o", filename, source]
+          compile Cpp = ["g++", "-o", filename, source]
+          compile Python = []
+
+          run Python = ["python3", source]
+          run _ = ["./" ++ filename]
+
+          clean Haskell = [filename, filename <.> "o", filename <.> "hi", source]
+          clean C = [filename, source]
+          clean Cpp = [filename, source]
+          clean Python = [source]
+
+cleanup :: [String] -> Tester ()
+cleanup = liftIO . mapM_ (void . try @IOException . removeFile)
+
 execProgram :: Language -> String -> [(String, String)] -> Tester ()
 execProgram lang input subtests = do
     filename <- liftIO getPOSIXTime >>= pure . ("tmp"</>) . (show :: Int -> FilePath) . round
     let (source, compileOptions, runOptions, cleanOptions) = options lang filename
     liftIO $ writeFile source input
 
-    finallyTester (cleanup cleanOptions) $ do
+    finally (cleanup cleanOptions) $ do
         case compileOptions of
             [] -> pure ()
             (prog:args) -> do
@@ -98,31 +123,6 @@ execProgram lang input subtests = do
                         let msg = "Runtime error. Program finished with exit code " ++ show code
                         liftIO (hGetContents stderr) >>= log . (++msg)
                         die TestSimpleFailed
-
-cleanup :: [String] -> Tester ()
-cleanup = liftIO . mapM_ (void . try @IOException . removeFile)
-
-options :: Language -> String -> (String, [String], [String], [String])
-options lang filename = (source, compile lang, run lang, clean lang)
-    where source = filename <.> ext lang
-
-          ext Haskell = "hs"
-          ext C = "c"
-          ext Cpp = "cpp"
-          ext Python = "py"
-
-          compile Haskell = ["ghc", "-o", filename, source]
-          compile C = ["gcc", "-o", filename, source]
-          compile Cpp = ["g++", "-o", filename, source]
-          compile Python = []
-
-          run Python = ["python3", source]
-          run _ = ["./" ++ filename]
-
-          clean Haskell = [filename, filename <.> "o", filename <.> "hi", source]
-          clean C = [filename, source]
-          clean Cpp = [filename, source]
-          clean Python = [source]
 
 runCustomTest :: String -> String -> String -> Tester ()
 runCustomTest cmd input output = do
