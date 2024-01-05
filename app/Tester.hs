@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Tester where
 
@@ -9,6 +10,8 @@ import Control.Monad.Either
 import Control.Concurrent.STM
 import Control.Exception (try, IOException)
 import Data.Time.Clock.POSIX (getPOSIXTime)
+import Data.Aeson
+import GHC.Generics
 import System.IO
 import System.Process
 import System.Directory
@@ -21,7 +24,6 @@ data TestError = TestGenericFailed
                | TestSimpleCompileError
                | TestSimpleFailed
                | TestCustomFailed
-               deriving Show
 
 type TestLogs = [String]
 
@@ -48,8 +50,16 @@ finally mfin m = do
 data Test = TestGeneric String
           | TestSimple Language [(String, String)]
           | TestCustom String String
+          deriving Generic
 
 data Language = Haskell | C | Cpp | Python
+    deriving Generic
+
+instance FromJSON Language
+instance ToJSON Language
+
+instance FromJSON Test
+instance ToJSON Test
 
 test :: Test -> String -> Tester ()
 test (TestGeneric output) input = unless (input == output) $ die TestGenericFailed

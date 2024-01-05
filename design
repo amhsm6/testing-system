@@ -1,4 +1,9 @@
-GET /courses
-GET /course?id=COURSE_ID
-GET /problem?id=PROBLEM_ID
-POST /submit?id=PROBLEM_ID
+API:
+
+GET /api/courses
+GET /api/course/COURSE_ID
+GET /api/problem/PROBLEM_ID
+POST /api/submit/PROBLEM_ID
+
+front:
+react?

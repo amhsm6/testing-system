@@ -1,77 +1,49 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
+
 module Main where
 
 import Control.Monad
-import Control.Monad.Reader
-import Control.Concurrent.STM
-import Control.Concurrent
-import qualified Data.ByteString.Lazy as B
-import qualified Data.ByteString.Lazy.UTF8 as B
+import Control.Monad.Trans
 import qualified Data.Text as T
-import System.FilePath
-import Network.HTTP.Types
-import Network.Wai
+import Servant
+import Servant.API.WebSocket
+import Network.WebSockets hiding (Headers)
 import Network.Wai.Handler.Warp
 
 import Tester
+import Database
 
-{-logger :: TVar TestLogs -> IO ()
-logger logs = do
-    processed <- atomically $ newTVar 0
-    void $ forkIO $ forever $ do
-        x <- atomically $ do
-            x <- readTVar logs
-            y <- readTVar processed
-            check $ length x > y
-            writeTVar processed $ length x
-            pure x
-        print x-}
+type Api = "api" :> "courses" :> Get '[JSON] Courses
+      :<|> "api" :> "course" :> Capture "courseId" Int :> Get '[JSON] Course
+      :<|> "api" :> "problem" :> Capture "problemId" Int :> Get '[JSON] Problem
+      :<|> "api" :> "submit" :> ReqBody '[PlainText] String :> WebSocket
+      :<|> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
+      :<|> "courses" :> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
+      :<|> "course" :> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
+      :<|> "problem" :> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
+      :<|> Raw
 
-type Reply = ReaderT Request IO Response
+api :: Proxy Api
+api = Proxy
 
-reply :: Request -> (Response -> IO ResponseReceived) -> Reply -> IO ResponseReceived
-reply req resp reply = runReaderT reply req >>= resp
+server :: ServerT Api DB
+server = coursesH :<|> courseH :<|> problemH :<|> submitH :<|> static
+    where coursesH = pure [Course 0]
 
-err404 :: Reply
-err404 = pure $ responseLBS notFound404 [] B.empty
+          courseH courseId = liftIO (print courseId) >> pure (Course courseId)
 
-static :: FilePath -> Reply
-static path = pure $ responseFile ok200 [] ("html" </> path) Nothing
+          problemH = undefined
 
-getRoutes :: Reply
-getRoutes = do
-    req <- ask
+          submitH _ conn = liftIO $ sendTextData conn $ T.pack "foo"
 
-    let path = map T.unpack $ pathInfo req 
-    case path of
-        [] -> static "index.html"
-        ["courses"] -> static "courses.html"
-        ["course"] -> static "course.html"
-        ["problem"] -> static "problem.html"
-        _ -> err404
-
-submit :: Reply
-submit = undefined
-
-postRoutes :: Reply
-postRoutes = do
-    req <- ask
-
-    let path = map T.unpack $ pathInfo req 
-    case path of
-        ["submit"] -> submit
-        _ -> err404
+          static = liftIO (addHeader "text/html" <$> readFile "static/html/index.html") :<|>
+                   liftIO (addHeader "text/html" <$> readFile "static/html/courses.html") :<|>
+                   liftIO (addHeader "text/html" <$> readFile "static/html/course.html") :<|>
+                   liftIO (addHeader "text/html" <$> readFile "static/html/problem.html") :<|>
+                   serveDirectoryWebApp "static"
 
 main :: IO ()
 main = do
-    {-logs <- atomically $ newTVar []
-    logger logs
-
-    let foo = test (TestSimple C $ (map (\x -> (show x, show $ x * 2)) [1..10]) ++ [("1", "")]) $
-                  "int main(void) { int x; scanf(\"%d\", &x); usleep(1000000); printf(\"%d\", x * 2); return 0; }"
-    runTester logs foo >>= print-}
     putStrLn "Server is running on port 8080"
-    run 8080 $ \req resp -> reply req resp $ do
-        case requestMethod req of
-            methodGet -> getRoutes
-            methodPost -> postRoutes
-            _ -> err404
+    run 8080 $ serve api $ hoistServer api runDB server

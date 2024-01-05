@@ -8,21 +8,24 @@ executable testing-system
     main-is:          Main.hs
 
     other-modules:    Tester
+                      Database
                       Control.Monad.Either
 
     build-depends:    base ^>=4.16.4.0
-                    , stm
                     , mtl
-                    , bytestring
-                    , utf8-string
+                    , stm
                     , text
                     , time
+                    , aeson
                     , process
                     , directory
                     , filepath
+                    , servant-server
+                    , servant-websockets
+                    , websockets
                     , warp
-                    , wai
-                    , http-types
+                    , HDBC
+                    , HDBC-sqlite3
 
     hs-source-dirs:   app
 
