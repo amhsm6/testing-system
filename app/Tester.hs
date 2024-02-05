@@ -6,19 +6,18 @@ module Tester where
 import Prelude hiding (log)
 import Control.Monad
 import Control.Monad.Reader
-import Control.Monad.Either
+import Control.Monad.Except
 import Control.Concurrent.STM
-import Control.Exception (try, IOException)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.Aeson
 import GHC.Generics
 import System.IO
-import System.Process
-import System.Directory
+import System.Exit
 import System.FilePath
-import System.Exit hiding (die)
+import System.Directory
+import System.Process
 
-type Tester = EitherT TestError (ReaderT (TVar TestLogs) IO)
+type Tester = ExceptT TestError (ReaderT (TVar TestLogs) IO)
 
 data TestError = TestGenericFailed
                | TestSimpleCompileError
@@ -28,24 +27,15 @@ data TestError = TestGenericFailed
 type TestLogs = [String]
 
 runTester :: TVar TestLogs -> Tester a -> IO (Either TestError a)
-runTester logs m = runReaderT (runEitherT m) logs
-
-die :: TestError -> Tester a
-die = EitherT . ReaderT . const . pure . Left
+runTester logs m = runReaderT (runExceptT m) logs
 
 log :: String -> Tester ()
 log x = do
     logs <- ask
     liftIO $ atomically $ modifyTVar logs (++[x])
 
-finally :: Tester a -> Tester b -> Tester b
-finally mfin m = do
-    logs <- ask
-    e <- liftIO $ runTester logs m
-    mfin
-    case e of
-        Left err -> die err
-        Right x -> pure x
+finally :: Tester () -> Tester () -> Tester ()
+finally mfin m = (m >> mfin) `catchError` (const mfin)
 
 data Test = TestGeneric String
           | TestSimple Language [(String, String)]
@@ -62,7 +52,7 @@ instance FromJSON Test
 instance ToJSON Test
 
 test :: Test -> String -> Tester ()
-test (TestGeneric output) input = unless (input == output) $ die TestGenericFailed
+test (TestGeneric output) input = unless (input == output) $ throwError TestGenericFailed
 test (TestSimple lang subtests) input = execProgram lang input subtests 
 test (TestCustom cmd output) input = runCustomTest cmd input output
 
@@ -89,7 +79,7 @@ options lang filename = (source, compile lang, run lang, clean lang)
           clean Python = [source]
 
 cleanup :: [String] -> Tester ()
-cleanup = liftIO . mapM_ (void . try @IOException . removeFile)
+cleanup = mapM_ $ \x -> liftIO (removeFile x) `catchError` (const $ pure ())
 
 execProgram :: Language -> String -> [(String, String)] -> Tester ()
 execProgram lang input subtests = do
@@ -112,7 +102,7 @@ execProgram lang input subtests = do
                     ExitFailure x -> do
                         let msg = "Compile error. Program finished with exit code " ++ show x
                         liftIO (hGetContents stderr) >>= log . (++msg)
-                        die TestSimpleCompileError
+                        throwError TestSimpleCompileError
 
         case runOptions of
             [] -> pure ()
@@ -127,12 +117,12 @@ execProgram lang input subtests = do
                 case exitCode of
                     ExitSuccess -> do
                         y' <- liftIO $ hGetContents stdout
-                        unless (y == y') $ log "Wrong answer" >> die TestSimpleFailed
+                        unless (y == y') $ log "Wrong answer" >> throwError TestSimpleFailed
                         log "Ok"
                     ExitFailure code -> do
                         let msg = "Runtime error. Program finished with exit code " ++ show code
                         liftIO (hGetContents stderr) >>= log . (++msg)
-                        die TestSimpleFailed
+                        throwError TestSimpleFailed
 
 runCustomTest :: String -> String -> String -> Tester ()
 runCustomTest cmd input output = do
@@ -146,9 +136,9 @@ runCustomTest cmd input output = do
     case exitCode of
         ExitSuccess -> do
             output' <- liftIO $ hGetContents stdout
-            unless (output == output') $ log "Wrong answer" >> die TestCustomFailed
+            unless (output == output') $ log "Wrong answer" >> throwError TestCustomFailed
             log "Ok"
         ExitFailure code -> do
             let msg = "Runtime error. Program finished with exit code " ++ show code
             liftIO (hGetContents stderr) >>= log . (++msg)
-            die TestCustomFailed
+            throwError TestCustomFailed

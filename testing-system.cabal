@@ -9,7 +9,6 @@ executable testing-system
 
     other-modules:    Tester
                       Database
-                      Control.Monad.Either
 
     build-depends:    base ^>=4.16.4.0
                     , mtl
@@ -17,9 +16,9 @@ executable testing-system
                     , text
                     , time
                     , aeson
-                    , process
-                    , directory
                     , filepath
+                    , directory
+                    , process
                     , servant-server
                     , servant-websockets
                     , websockets

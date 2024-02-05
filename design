@@ -1,9 +1,0 @@
-API:
-
-GET /api/courses
-GET /api/course/COURSE_ID
-GET /api/problem/PROBLEM_ID
-POST /api/submit/PROBLEM_ID
-
-front:
-react?
