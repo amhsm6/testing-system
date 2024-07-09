@@ -17,6 +17,16 @@ type DB = ReaderT Connection Handler
 runDB :: DB a -> Handler a
 runDB db = liftIO (connectSqlite3 "db.sqlite") >>= runReaderT db
 
+type Courses = [Course]
+
+data Course = Course { id :: Int
+                     , name :: String
+                     }
+                     deriving Generic
+
+instance FromJSON Course
+instance ToJSON Course
+
 data Problem = Problem { problemId :: Int
                        , courseId :: Int
                        , test :: Test
@@ -25,18 +35,3 @@ data Problem = Problem { problemId :: Int
 
 instance FromJSON Problem
 instance ToJSON Problem
-
-data Course = Course { id :: Int
-                     }
-                     deriving Generic
-
-instance FromJSON Course
-instance ToJSON Course
-
-type Courses = [Course]
-
-courses = undefined
-
-course = undefined
-
-problem = undefined

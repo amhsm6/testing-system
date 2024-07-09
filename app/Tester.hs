@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 module Tester where
@@ -19,10 +18,8 @@ import System.Process
 
 type Tester = ExceptT TestError (ReaderT (TVar TestLogs) IO)
 
-data TestError = TestGenericFailed
-               | TestSimpleCompileError
-               | TestSimpleFailed
-               | TestCustomFailed
+data TestError = TestCompileError
+               | TestFailed
 
 type TestLogs = [String]
 
@@ -34,13 +31,15 @@ log x = do
     logs <- ask
     liftIO $ atomically $ modifyTVar logs (++[x])
 
-finally :: Tester () -> Tester () -> Tester ()
-finally mfin m = (m >> mfin) `catchError` (const mfin)
+finally :: Tester a -> Tester b -> Tester b
+finally mfin m = do
+    x <- tryError m
+    case x of
+        Left e -> mfin >> throwError e
+        Right x -> mfin >> pure x
 
-data Test = TestGeneric String
-          | TestSimple Language [(String, String)]
-          | TestCustom String String
-          deriving Generic
+data Test = Test Language [(String, String)]
+    deriving Generic
 
 data Language = Haskell | C | Cpp | Python
     deriving Generic
@@ -50,11 +49,6 @@ instance ToJSON Language
 
 instance FromJSON Test
 instance ToJSON Test
-
-test :: Test -> String -> Tester ()
-test (TestGeneric output) input = unless (input == output) $ throwError TestGenericFailed
-test (TestSimple lang subtests) input = execProgram lang input subtests 
-test (TestCustom cmd output) input = runCustomTest cmd input output
 
 options :: Language -> String -> (String, [String], [String], [String])
 options lang filename = (source, compile lang, run lang, clean lang)
@@ -79,10 +73,10 @@ options lang filename = (source, compile lang, run lang, clean lang)
           clean Python = [source]
 
 cleanup :: [String] -> Tester ()
-cleanup = mapM_ $ \x -> liftIO (removeFile x) `catchError` (const $ pure ())
+cleanup = mapM_ $ \x -> liftIO $ tryError $ removeFile x
 
-execProgram :: Language -> String -> [(String, String)] -> Tester ()
-execProgram lang input subtests = do
+test :: Test -> String -> Tester ()
+test (Test lang tests) input = do
     filename <- liftIO getPOSIXTime >>= pure . ("tmp"</>) . (show :: Int -> FilePath) . round
     let (source, compileOptions, runOptions, cleanOptions) = options lang filename
     liftIO $ writeFile source input
@@ -102,11 +96,11 @@ execProgram lang input subtests = do
                     ExitFailure x -> do
                         let msg = "Compile error. Program finished with exit code " ++ show x
                         liftIO (hGetContents stderr) >>= log . (++msg)
-                        throwError TestSimpleCompileError
+                        throwError TestCompileError
 
         case runOptions of
             [] -> pure ()
-            (prog:args) -> forM_ subtests $ \(x, y) -> do
+            (prog:args) -> forM_ tests $ \(x, y) -> do
                 let process = (proc prog args){ std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe }
                 (mbStdin, mbStdout, mbStderr, handle) <- liftIO $ createProcess process
                 let stdin = maybe undefined id mbStdin
@@ -117,28 +111,9 @@ execProgram lang input subtests = do
                 case exitCode of
                     ExitSuccess -> do
                         y' <- liftIO $ hGetContents stdout
-                        unless (y == y') $ log "Wrong answer" >> throwError TestSimpleFailed
+                        unless (y == y') $ log "Wrong answer" >> throwError TestFailed
                         log "Ok"
                     ExitFailure code -> do
                         let msg = "Runtime error. Program finished with exit code " ++ show code
                         liftIO (hGetContents stderr) >>= log . (++msg)
-                        throwError TestSimpleFailed
-
-runCustomTest :: String -> String -> String -> Tester ()
-runCustomTest cmd input output = do
-    let process = (proc cmd []){ std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe }
-    (mbStdin, mbStdout, mbStderr, handle) <- liftIO $ createProcess process
-    let stdin = maybe undefined id mbStdin
-        stdout = maybe undefined id mbStdout
-        stderr = maybe undefined id mbStderr
-
-    exitCode <- liftIO $ hPutStrLn stdin input >> hFlush stdin >> waitForProcess handle
-    case exitCode of
-        ExitSuccess -> do
-            output' <- liftIO $ hGetContents stdout
-            unless (output == output') $ log "Wrong answer" >> throwError TestCustomFailed
-            log "Ok"
-        ExitFailure code -> do
-            let msg = "Runtime error. Program finished with exit code " ++ show code
-            liftIO (hGetContents stderr) >>= log . (++msg)
-            throwError TestCustomFailed
+                        throwError TestFailed

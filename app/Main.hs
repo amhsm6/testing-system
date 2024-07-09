@@ -29,9 +29,9 @@ api = Proxy
 
 server :: ServerT Api DB
 server = coursesH :<|> courseH :<|> problemH :<|> submitH :<|> static
-    where coursesH = pure [Course 0]
+    where coursesH = pure [Course 0 "Course 0"]
 
-          courseH courseId = liftIO (print courseId) >> pure (Course courseId)
+          courseH courseId = liftIO (print courseId) >> pure (Course courseId "_course_name")
 
           problemH = undefined
 
