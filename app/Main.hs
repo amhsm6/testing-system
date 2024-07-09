@@ -14,10 +14,9 @@ import Network.Wai.Handler.Warp
 import Tester
 import Database
 
-type Api = "api" :> "courses" :> Get '[JSON] Courses
-      :<|> "api" :> "course" :> Capture "courseId" Int :> Get '[JSON] Course
-      :<|> "api" :> "problem" :> Capture "problemId" Int :> Get '[JSON] Problem
-      :<|> "api" :> "submit" :> ReqBody '[PlainText] String :> WebSocket
+type Api = "api" :> "courses" :> Get '[JSON] [Course]
+      :<|> "api" :> "problems" :> Capture "courseId" Int :> Get '[JSON] [Problem]
+      :<|> "api" :> "submit" :> Capture "problemId" Int :> WebSocket
       :<|> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
       :<|> "courses" :> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
       :<|> "course" :> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
@@ -28,14 +27,17 @@ api :: Proxy Api
 api = Proxy
 
 server :: ServerT Api DB
-server = coursesH :<|> courseH :<|> problemH :<|> submitH :<|> static
-    where coursesH = pure [Course 0 "Course 0"]
+server = coursesH :<|> problemsH :<|> submitH :<|> static
+    where coursesH = getCourses
 
-          courseH courseId = liftIO (print courseId) >> pure (Course courseId "_course_name")
+          problemsH courseId = undefined
 
-          problemH = undefined
+          submitH problemId conn = liftIO $ do
+              src <- T.unpack <$> receiveData conn
+              print problemId
+              print src
 
-          submitH _ conn = liftIO $ sendTextData conn $ T.pack "foo"
+              sendTextData conn $ T.pack $ "foo " ++ show problemId
 
           static = liftIO (addHeader "text/html" <$> readFile "static/html/index.html") :<|>
                    liftIO (addHeader "text/html" <$> readFile "static/html/courses.html") :<|>
