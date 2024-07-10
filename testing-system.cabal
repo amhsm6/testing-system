@@ -26,12 +26,13 @@ executable testing-system
                     , filepath
                     , directory
                     , process
+                    , dotenv
                     , servant-server
                     , servant-websockets
                     , websockets
                     , warp
                     , HDBC
-                    , HDBC-sqlite3
+                    , HDBC-postgresql
 
     hs-source-dirs:   app
 

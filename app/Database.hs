@@ -6,14 +6,28 @@ import Control.Monad
 import Control.Monad.Reader
 import Data.Aeson
 import GHC.Generics
+import System.Environment
 import Servant
 import Database.HDBC
-import Database.HDBC.Sqlite3
+import Database.HDBC.PostgreSQL
 
 type DB = ReaderT Connection Handler
 
 runDB :: DB a -> Handler a
-runDB m = liftIO (connectSqlite3 "db.sqlite") >>= runReaderT m
+runDB m = do
+    conn <- liftIO $ do
+        host <- getEnv "DBHOST"
+        user <- getEnv "DBUSER"
+        pass <- getEnv "DBPASS"
+        db   <- getEnv "DBNAME"
+        let str = concat $ [ "host = ", host, " "
+                           , "user = ", user, " "
+                           , "password = ", pass, " "
+                           , "dbname = ", db
+                           ]
+        connectPostgreSQL str
+
+    runReaderT m conn
 
 data Course = Course { courseId :: Int
                      , name :: String
@@ -40,5 +54,5 @@ getCourses = do
         fetchAllRowsAL st
 
     forM rows $ \row -> case row of
-                            [("id", id), ("name", name)] -> pure $ Course (fromSql id) (fromSql name)
+                            [("course_id", id), ("name", name)] -> pure $ Course (fromSql id) (fromSql name)
                             _ -> throwError err500

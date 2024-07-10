@@ -6,6 +6,7 @@ module Main where
 import Control.Monad
 import Control.Monad.Trans
 import qualified Data.Text as T
+import Configuration.Dotenv
 import Servant
 import Servant.API.WebSocket
 import Network.WebSockets hiding (Headers)
@@ -47,5 +48,6 @@ server = coursesH :<|> problemsH :<|> submitH :<|> static
 
 main :: IO ()
 main = do
+    loadFile defaultConfig
     putStrLn "Server is running on port 8080"
     run 8080 $ serve api $ hoistServer api runDB server
