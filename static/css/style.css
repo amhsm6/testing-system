@@ -1,3 +1,22 @@
-body {
-    color: red;
+#header {
+    height: 80px;
+    background-color: #ccc;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#header a {
+    color: black;
+    font-size: 1.5rem;
+    text-decoration: none;
+    padding-bottom: 5px;
+    border-bottom: 2px solid black;
+}
+
+#header a:hover {
+    color: gray;
+    cursor: default;
+    border-bottom: 2px solid gray;
+    transition: all 0.5s;
 }
