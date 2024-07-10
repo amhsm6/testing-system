@@ -20,11 +20,11 @@ runDB m = do
         user <- getEnv "DBUSER"
         pass <- getEnv "DBPASS"
         db   <- getEnv "DBNAME"
-        let str = concat $ [ "host = ", host, " "
-                           , "user = ", user, " "
-                           , "password = ", pass, " "
-                           , "dbname = ", db
-                           ]
+        let str = concat [ "host = ", host, " "
+                         , "user = ", user, " "
+                         , "password = ", pass, " "
+                         , "dbname = ", db
+                         ]
         connectPostgreSQL str
 
     runReaderT m conn
