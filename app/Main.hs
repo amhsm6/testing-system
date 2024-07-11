@@ -19,16 +19,15 @@ type Api = "api" :> "courses" :> Get '[JSON] [Course]
       :<|> "api" :> "problems" :> Capture "courseId" Int :> Get '[JSON] [Problem]
       :<|> "api" :> "submit" :> Capture "problemId" Int :> WebSocket
       :<|> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
-      :<|> "courses" :> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
-      :<|> "course" :> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
-      :<|> "problem" :> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
+      :<|> "course" :> Capture "courseId" Int :> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
+      :<|> "problem" :> Capture "problemId" Int :> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
       :<|> Raw
 
 api :: Proxy Api
 api = Proxy
 
 server :: ServerT Api DB
-server = coursesH :<|> problemsH :<|> submitH :<|> static
+server = coursesH :<|> problemsH :<|> submitH :<|> staticH
     where coursesH = getCourses
 
           problemsH courseId = undefined
@@ -40,11 +39,10 @@ server = coursesH :<|> problemsH :<|> submitH :<|> static
 
               sendTextData conn $ T.pack $ "foo " ++ show problemId
 
-          static = liftIO (addHeader "text/html" <$> readFile "static/html/index.html") :<|>
-                   liftIO (addHeader "text/html" <$> readFile "static/html/courses.html") :<|>
-                   liftIO (addHeader "text/html" <$> readFile "static/html/course.html") :<|>
-                   liftIO (addHeader "text/html" <$> readFile "static/html/problem.html") :<|>
-                   serveDirectoryWebApp "static"
+          staticH = liftIO (addHeader "text/html" <$> readFile "static/html/index.html") :<|>
+                    const (liftIO (addHeader "text/html" <$> readFile "static/html/course.html")) :<|>
+                    const (liftIO (addHeader "text/html" <$> readFile "static/html/problem.html")) :<|>
+                    serveDirectoryWebApp "static"
 
 main :: IO ()
 main = do

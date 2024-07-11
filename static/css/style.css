@@ -1,15 +1,24 @@
+body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+a {
+    text-decoration: none;
+}
+
 #header {
     height: 80px;
-    background-color: #ccc;
     display: flex;
     justify-content: center;
     align-items: center;
+    background-color: #ccc;
 }
 
 #header a {
     color: black;
     font-size: 1.5rem;
-    text-decoration: none;
     padding-bottom: 5px;
     border-bottom: 2px solid black;
 }
@@ -18,5 +27,34 @@
     color: gray;
     cursor: default;
     border-bottom: 2px solid gray;
+    transition: all 0.5s;
+}
+
+#content {
+    height: calc(100% - 80px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #ddd;
+}
+
+#courses {
+    width: 600px;
+    padding-top: 20px;
+}
+
+.course {
+    margin-top: 40px;
+}
+
+.course a {
+    color: black;
+    font-size: 1.5rem;
+    padding-bottom: 5px;
+}
+
+.course a:hover {
+    color: gray;
+    cursor: default;
     transition: all 0.5s;
 }

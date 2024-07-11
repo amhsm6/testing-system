@@ -38,7 +38,7 @@ instance FromJSON Course
 instance ToJSON Course
 
 data Problem = Problem { problemId :: Int
-                       , desc :: String
+                       , description :: String
                        }
                        deriving Generic
 
