@@ -1,26 +1,39 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
 import Control.Monad
 import Control.Monad.Trans
+import qualified Data.ByteString.Lazy.UTF8 as B
 import qualified Data.Text as T
 import Configuration.Dotenv
 import Servant
 import Servant.API.WebSocket
 import Network.WebSockets hiding (Headers)
 import Network.Wai.Handler.Warp
+import Network.HTTP.Media ((//))
 
 import Tester
 import Database
 
+data HTML
+
+instance Accept HTML where
+    contentType _ = "text" // "html"
+
+instance MimeRender HTML String where
+    mimeRender _ = B.fromString
+
 type Api = "api" :> "courses" :> Get '[JSON] [Course]
       :<|> "api" :> "problems" :> Capture "courseId" Int :> Get '[JSON] [Problem]
       :<|> "api" :> "submit" :> Capture "problemId" Int :> WebSocket
-      :<|> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
-      :<|> "course" :> Capture "courseId" Int :> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
-      :<|> "problem" :> Capture "problemId" Int :> Get '[PlainText] (Headers '[Header "Content-Type" String] String)
+      :<|> Get '[HTML] String
+      :<|> "course" :> Capture "courseId" Int :> Get '[HTML] String
+      :<|> "problem" :> Capture "problemId" Int :> Get '[HTML] String
       :<|> Raw
 
 api :: Proxy Api
@@ -39,9 +52,9 @@ server = coursesH :<|> problemsH :<|> submitH :<|> staticH
 
               sendTextData conn $ T.pack $ "foo " ++ show problemId
 
-          staticH = liftIO (addHeader "text/html" <$> readFile "static/html/index.html") :<|>
-                    const (liftIO (addHeader "text/html" <$> readFile "static/html/course.html")) :<|>
-                    const (liftIO (addHeader "text/html" <$> readFile "static/html/problem.html")) :<|>
+          staticH = liftIO (readFile "static/html/index.html") :<|>
+                    const (liftIO $ readFile "static/html/course.html") :<|>
+                    const (liftIO $ readFile "static/html/problem.html") :<|>
                     serveDirectoryWebApp "static"
 
 main :: IO ()

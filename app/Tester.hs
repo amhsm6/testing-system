@@ -8,7 +8,6 @@ import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Concurrent.STM
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import Data.Aeson
 import GHC.Generics
 import System.IO
 import System.Exit
@@ -16,7 +15,7 @@ import System.FilePath
 import System.Directory
 import System.Process
 
-type Tester = ExceptT TestError (ReaderT (TVar TestLogs) IO)
+type Tester = ReaderT (TVar TestLogs) (ExceptT TestError IO)
 
 data TestError = TestCompileError
                | TestFailed
@@ -24,7 +23,7 @@ data TestError = TestCompileError
 type TestLogs = [String]
 
 runTester :: TVar TestLogs -> Tester a -> IO (Either TestError a)
-runTester logs m = runReaderT (runExceptT m) logs
+runTester logs m = runExceptT $ runReaderT m logs
 
 log :: String -> Tester ()
 log x = do
@@ -43,12 +42,6 @@ data Test = Test Language [(String, String)]
 
 data Language = Haskell | C | Cpp | Python
     deriving Generic
-
-instance FromJSON Language
-instance ToJSON Language
-
-instance FromJSON Test
-instance ToJSON Test
 
 options :: Language -> String -> (String, [String], [String], [String])
 options lang filename = (source, compile lang, run lang, clean lang)
