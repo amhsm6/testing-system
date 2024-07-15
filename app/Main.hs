@@ -2,14 +2,14 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
 import Control.Monad
 import Control.Monad.Trans
-import qualified Data.ByteString.Lazy.UTF8 as B
-import qualified Data.Text as T
+import Control.Lens
+import Data.ByteString.Lens
+import Data.Text.Lazy.Lens
 import Configuration.Dotenv
 import Servant
 import Servant.API.WebSocket
@@ -17,44 +17,41 @@ import Network.WebSockets hiding (Headers)
 import Network.Wai.Handler.Warp
 import Network.HTTP.Media ((//))
 
-import Tester
 import Database
 
 data HTML
 
 instance Accept HTML where
-    contentType _ = "text" // "html"
+    contentType _ = Chars "text" // Chars "html"
 
 instance MimeRender HTML String where
-    mimeRender _ = B.fromString
+    mimeRender _ = Chars
 
 type Api = "api" :> "courses" :> Get '[JSON] [Course]
-      :<|> "api" :> "problems" :> Capture "courseId" Int :> Get '[JSON] [Problem]
+      :<|> "api" :> "course" :> Capture "courseId" Int :> Get '[JSON] Course
       :<|> "api" :> "submit" :> Capture "problemId" Int :> WebSocket
       :<|> Get '[HTML] String
       :<|> "course" :> Capture "courseId" Int :> Get '[HTML] String
-      :<|> "problem" :> Capture "problemId" Int :> Get '[HTML] String
       :<|> Raw
 
 api :: Proxy Api
 api = Proxy
 
 server :: ServerT Api DB
-server = coursesH :<|> problemsH :<|> submitH :<|> staticH
+server = coursesH :<|> courseH :<|> submitH :<|> staticH
     where coursesH = getCourses
 
-          problemsH courseId = undefined
+          courseH = getCourse
 
           submitH problemId conn = liftIO $ do
-              src <- T.unpack <$> receiveData conn
+              src <- view unpacked <$> receiveData conn
               print problemId
               print src
 
-              sendTextData conn $ T.pack $ "foo " ++ show problemId
+              sendTextData conn $ view packed $ "foo " ++ show problemId
 
           staticH = liftIO (readFile "static/html/index.html") :<|>
                     const (liftIO $ readFile "static/html/course.html") :<|>
-                    const (liftIO $ readFile "static/html/problem.html") :<|>
                     serveDirectoryWebApp "static"
 
 main :: IO ()

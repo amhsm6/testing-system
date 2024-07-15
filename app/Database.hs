@@ -1,9 +1,12 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Database where
 
 import Control.Monad
 import Control.Monad.Reader
+import Control.Lens
+import Data.ByteString.Lens
 import Data.Aeson
 import GHC.Generics
 import System.Environment
@@ -28,21 +31,25 @@ runDB m = do
 
     runReaderT m conn
 
-data Course = Course { courseId :: Int
-                     , name :: String
+data Course = Course { __courseId :: Int
+                     , __name :: String
+                     , __problems :: [Problem]
                      }
                      deriving Generic
 
-instance FromJSON Course
-instance ToJSON Course
-
-data Problem = Problem { problemId :: Int
-                       , description :: String
+data Problem = Problem { __problemId :: Int
+                       , __description :: String
                        }
                        deriving Generic
 
 instance FromJSON Problem
 instance ToJSON Problem
+
+instance FromJSON Course
+instance ToJSON Course
+
+makeLenses ''Course
+makeLenses ''Problem
 
 getCourses :: DB [Course]
 getCourses = do
@@ -50,8 +57,32 @@ getCourses = do
     rows <- liftIO $ do
         st <- prepare c "SELECT * FROM courses"
         execute st []
-        fetchAllRowsAL st
+        fetchAllRows st
 
     forM rows $ \row -> case row of
-                            [("course_id", id), ("name", name)] -> pure $ Course (fromSql id) (fromSql name)
-                            _ -> throwError err500
+                            [id, name] -> pure $ Course (fromSql id) (fromSql name) []
+                            _ -> throwError $ err500 { errBody = Chars "Unknown Error" }
+
+getCourse :: Int -> DB Course
+getCourse id = do
+    c <- ask
+
+    row <- liftIO $ do
+        st <- prepare c "SELECT * FROM courses WHERE course_id = ?"
+        execute st [toSql id]
+        fetchRow st
+
+    course <- case row of
+                  Just [id, name] -> pure $ Course (fromSql id) (fromSql name) []
+                  _ -> throwError $ err500 { errBody = Chars "Unknown Error" }
+
+    rows <- liftIO $ do
+        st <- prepare c "SELECT * FROM problems WHERE course_id = ?"
+        execute st [toSql id]
+        fetchAllRows st
+
+    problems <- forM rows $ \row -> case row of
+                                        [id, desc, _] -> pure $ Problem (fromSql id) (fromSql desc)
+                                        _ -> throwError $ err500 { errBody = Chars "Unknown Error" }
+
+    pure $ course & _problems .~ problems

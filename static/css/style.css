@@ -1,7 +1,6 @@
 body {
-    height: 100%;
     margin: 0;
-    padding: 0;
+    background: #ddd;
 }
 
 a {
@@ -17,25 +16,23 @@ a {
 }
 
 #header a {
-    color: black;
-    font-size: 1.5rem;
     padding-bottom: 5px;
     border-bottom: 2px solid black;
-}
-
-#header a:hover {
-    color: gray;
-    cursor: default;
-    border-bottom: 2px solid gray;
+    font-size: 1.5em;
+    color: black;
     transition: all 0.5s;
 }
 
+#header a:hover {
+    border-bottom: 2px solid gray;
+    color: gray;
+    cursor: default;
+}
+
 #content {
-    height: calc(100% - 80px);
     display: flex;
     flex-direction: column;
     align-items: center;
-    background-color: #ddd;
 }
 
 #courses {
@@ -48,13 +45,59 @@ a {
 }
 
 .course a {
-    color: black;
-    font-size: 1.5rem;
     padding-bottom: 5px;
+    font-size: 1.5em;
+    color: black;
+    transition: all 0.5s;
 }
 
 .course a:hover {
     color: gray;
     cursor: default;
-    transition: all 0.5s;
+}
+
+#course-name {
+    margin-top: 30px;
+}
+
+#course-name span {
+    font-size: 1.5em;
+}
+
+#problem-selector {
+    width: round(50%, 50px);
+    margin-top: 20px;
+    border: 5px solid silver;
+    background-color: white;
+}
+
+#problem-selector-navpanel {
+    width: 100%;
+    float: left;
+    border-bottom: 5px solid black;
+}
+
+.navbox {
+    width: 50px;
+    float: left;
+}
+
+.navbox button {
+    border-radius: 0;
+    font-size: 1.5em;
+}
+
+.navbox-active button {
+    background-color: #aaa;
+}
+
+#problem-selector-content {
+    float: left;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#problem-description {
+    width: 80%;
 }

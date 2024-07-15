@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-
 module Tester where
 
 import Prelude hiding (log)
@@ -7,8 +5,7 @@ import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Concurrent.STM
-import Data.Time.Clock.POSIX (getPOSIXTime)
-import GHC.Generics
+import Data.Time.Clock.POSIX
 import System.IO
 import System.Exit
 import System.FilePath
@@ -17,7 +14,8 @@ import System.Process
 
 type Tester = ReaderT (TVar TestLogs) (ExceptT TestError IO)
 
-data TestError = TestCompileError
+data TestError = TestUnknownError
+               | TestCompileError
                | TestFailed
 
 type TestLogs = [String]
@@ -38,10 +36,8 @@ finally mfin m = do
         Right x -> mfin >> pure x
 
 data Test = Test Language [(String, String)]
-    deriving Generic
 
 data Language = Haskell | C | Cpp | Python
-    deriving Generic
 
 options :: Language -> String -> (String, [String], [String], [String])
 options lang filename = (source, compile lang, run lang, clean lang)
@@ -80,8 +76,8 @@ test (Test lang tests) input = do
             (prog:args) -> do
                 let process = (proc prog args){ std_out = CreatePipe, std_err = CreatePipe }
                 (_, mbStdout, mbStderr, handle) <- liftIO $ createProcess process
-                let stdout = maybe undefined id mbStdout
-                    stderr = maybe undefined id mbStderr
+                stdout <- maybe (throwError TestUnknownError) pure mbStdout
+                stderr <- maybe (throwError TestUnknownError) pure mbStderr
 
                 exitCode <- liftIO $ waitForProcess handle
                 case exitCode of
@@ -96,9 +92,9 @@ test (Test lang tests) input = do
             (prog:args) -> forM_ tests $ \(x, y) -> do
                 let process = (proc prog args){ std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe }
                 (mbStdin, mbStdout, mbStderr, handle) <- liftIO $ createProcess process
-                let stdin = maybe undefined id mbStdin
-                    stdout = maybe undefined id mbStdout
-                    stderr = maybe undefined id mbStderr
+                stdin <- maybe (throwError TestUnknownError) pure mbStdin
+                stdout <- maybe (throwError TestUnknownError) pure mbStdout
+                stderr <- maybe (throwError TestUnknownError) pure mbStderr
 
                 exitCode <- liftIO $ hPutStrLn stdin x >> hFlush stdin >> waitForProcess handle
                 case exitCode of
