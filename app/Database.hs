@@ -77,7 +77,7 @@ getCourse id = do
                   _ -> throwError $ err500 { errBody = Chars "Unknown Error" }
 
     rows <- liftIO $ do
-        st <- prepare c "SELECT * FROM problems WHERE course_id = ?"
+        st <- prepare c "SELECT * FROM problems WHERE course_id = ? ORDER BY problem_id"
         execute st [toSql id]
         fetchAllRows st
 

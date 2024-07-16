@@ -56,17 +56,9 @@ a {
     cursor: default;
 }
 
-#course-name {
-    margin-top: 30px;
-}
-
-#course-name span {
-    font-size: 1.5em;
-}
-
 #problem-selector {
     width: round(50%, 50px);
-    margin-top: 20px;
+    margin-bottom: 50!important;
     border: 5px solid silver;
     background-color: white;
 }
@@ -100,4 +92,35 @@ a {
 
 #problem-description {
     width: 80%;
+}
+
+#upload-form {
+    width: 80%;
+    margin-bottom: 30px;
+}
+
+#upload-file-input {
+    margin-top: 10px;
+    margin-bottom: 20px;
+    font-size: 1em;
+}
+
+#upload-solution {
+    float: right;
+    position: relative;
+    padding: 3px 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.5em;
+    background-color: #30aadd;
+    transition: all 0.5s;
+}
+
+#upload-solution:hover {
+    background-color: #99ff22;
+}
+
+#upload-solution:active {
+    transform: translate(0, 5px);
+    transition: all 0.1s;
 }
