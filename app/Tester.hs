@@ -4,7 +4,10 @@ import Prelude hiding (log)
 import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.Except
+import Control.Lens hiding ((<.>))
 import Control.Concurrent.STM
+import Data.Text.Lens
+import qualified Data.Text as T
 import Data.Time.Clock.POSIX
 import System.IO
 import System.Exit
@@ -17,6 +20,7 @@ type Tester = ReaderT (TVar TestLogs) (ExceptT TestError IO)
 data TestError = TestUnknownError
                | TestCompileError
                | TestFailed
+               deriving Show
 
 type TestLogs = [String]
 
@@ -34,6 +38,9 @@ finally mfin m = do
     case x of
         Left e -> mfin >> throwError e
         Right x -> mfin >> pure x
+
+unwrap :: Maybe a -> Tester a
+unwrap = maybe (throwError TestUnknownError) pure
 
 data Test = Test Language [(String, String)]
 
@@ -62,7 +69,14 @@ options lang filename = (source, compile lang, run lang, clean lang)
           clean Python = [source]
 
 cleanup :: [String] -> Tester ()
-cleanup = mapM_ $ \x -> liftIO $ tryError $ removeFile x
+cleanup = mapM_ $ liftIO . tryError . removeFile
+
+checkOutput :: String -> String -> Bool
+checkOutput x y = x' == y'
+    where (x', y') = (x, y) & both %~ stripLines . strip
+
+          stripLines = over lined strip
+          strip = over packed T.strip
 
 test :: Test -> String -> Tester ()
 test (Test lang tests) input = do
@@ -76,8 +90,8 @@ test (Test lang tests) input = do
             (prog:args) -> do
                 let process = (proc prog args){ std_out = CreatePipe, std_err = CreatePipe }
                 (_, mbStdout, mbStderr, handle) <- liftIO $ createProcess process
-                stdout <- maybe (throwError TestUnknownError) pure mbStdout
-                stderr <- maybe (throwError TestUnknownError) pure mbStderr
+                stdout <- unwrap mbStdout
+                stderr <- unwrap mbStderr
 
                 exitCode <- liftIO $ waitForProcess handle
                 case exitCode of
@@ -92,15 +106,15 @@ test (Test lang tests) input = do
             (prog:args) -> forM_ tests $ \(x, y) -> do
                 let process = (proc prog args){ std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe }
                 (mbStdin, mbStdout, mbStderr, handle) <- liftIO $ createProcess process
-                stdin <- maybe (throwError TestUnknownError) pure mbStdin
-                stdout <- maybe (throwError TestUnknownError) pure mbStdout
-                stderr <- maybe (throwError TestUnknownError) pure mbStderr
+                stdin <- unwrap mbStdin
+                stdout <- unwrap mbStdout
+                stderr <- unwrap mbStderr
 
-                exitCode <- liftIO $ hPutStrLn stdin x >> hFlush stdin >> waitForProcess handle
+                exitCode <- liftIO $ hPutStrLn stdin x >> hClose stdin >> waitForProcess handle
                 case exitCode of
                     ExitSuccess -> do
                         y' <- liftIO $ hGetContents stdout
-                        unless (y == y') $ log "Wrong answer" >> throwError TestFailed
+                        unless (checkOutput y y') $ log "Wrong answer" >> throwError TestFailed
                         log "Ok"
                     ExitFailure code -> do
                         let msg = "Runtime error. Program finished with exit code " ++ show code

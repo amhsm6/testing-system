@@ -22,7 +22,7 @@ runDB m = do
         host <- getEnv "DBHOST"
         user <- getEnv "DBUSER"
         pass <- getEnv "DBPASS"
-        db   <- getEnv "DBNAME"
+        db <- getEnv "DBNAME"
         connectPostgreSQL $ concat [ "host = ", host, " "
                                    , "user = ", user, " "
                                    , "password = ", pass, " "
@@ -68,7 +68,7 @@ getCourse id = do
     c <- ask
 
     row <- liftIO $ do
-        st <- prepare c "SELECT * FROM courses WHERE course_id = ?"
+        st <- prepare c "SELECT * FROM courses WHERE course_id = ? ORDER BY course_id"
         execute st [toSql id]
         fetchRow st
 
@@ -86,3 +86,15 @@ getCourse id = do
                                         _ -> throwError $ err500 { errBody = Chars "Unknown Error" }
 
     pure $ course & _problems .~ problems
+
+getTests :: Int -> DB [(String, String)]
+getTests id = do
+    c <- ask
+    rows <- liftIO $ do
+        st <- prepare c "SELECT * FROM tests WHERE problem_id = ? ORDER BY test_id"
+        execute st [toSql id]
+        fetchAllRows st
+
+    forM rows $ \row -> case row of
+                            [_, input, output, _] -> pure $ (input, output) & both %~ fromSql
+                            _ -> throwError $ err500 { errBody = Chars "Unknown Error" }

@@ -45,13 +45,17 @@ onload = async () => {
     uploadButton.addEventListener("click", _ => {
         const ws = new WebSocket(`/api/submit/${currSelectedProblemId}`);
 
-        ws.addEventListener("open", async _ => {
+        ws.onopen = async () => {
             if (uploadInput.files.length != 1) { return; }
 
             const content = await uploadInput.files[0].text();
             ws.send(content);
 
             uploadInput.value = null;
-        });
+        };
+
+        ws.onmessage = msg => {
+            console.log(msg);
+        };
     });
 }
