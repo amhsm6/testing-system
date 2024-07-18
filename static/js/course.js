@@ -51,6 +51,8 @@ onload = async () => {
             const content = await uploadInput.files[0].text();
             ws.send(content);
 
+            ws.send(JSON.stringify("Haskell"));
+
             uploadInput.value = null;
         };
 

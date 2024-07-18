@@ -49,29 +49,34 @@ server = coursesH :<|> courseH :<|> submitH :<|> staticH
 
           submitH problemId conn = do
               src <- view unpacked <$> liftIO (receiveData conn)
+              lang <- view unpacked <$> liftIO (receiveData conn)
               tests <- getTests problemId
 
-              logs <- liftIO $ atomically $ newTVar []
-              logsRead <- liftIO $ atomically $ newTVar 0
+              liftIO $ do
+                  logs <- atomically $ newTVar []
+                  logsRead <- atomically $ newTVar 0
 
-              let sendLogs = forever $ do
-                      xs <- atomically $ do
-                          xs <- readTVar logs
-                          y <- readTVar logsRead
-                          check $ length xs > y
+                  let sendLogs = forever $ do
+                          xs <- atomically $ do
+                              xs <- readTVar logs
+                              y <- readTVar logsRead
+                              check $ length xs > y
 
-                          writeTVar logsRead $ length xs
-                          pure xs
+                              writeTVar logsRead $ length xs
+                              pure xs
 
-                      sendTextData conn $ xs ^. re _JSON . packed
-              thread <- liftIO $ forkIO sendLogs
+                          sendTextData conn $ xs ^. re _JSON . packed
+                  thread <- forkIO sendLogs
 
-              let t = Test Haskell tests
-              res <- liftIO $ runTester logs $ test t src
+                  res <- runTester logs $ test src lang tests
 
-              liftIO $ killThread thread
+                  atomically $ do
+                      xs <- readTVar logs
+                      y <- readTVar logsRead
+                      check $ length xs == y
+                  killThread thread
 
-              liftIO $ print res
+                  sendTextData conn $ res ^. re _JSON . packed
 
           staticH = liftIO (readFile "static/html/index.html") :<|>
                     const (liftIO $ readFile "static/html/course.html") :<|>

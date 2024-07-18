@@ -51,6 +51,16 @@ instance ToJSON Course
 makeLenses ''Course
 makeLenses ''Problem
 
+data Test = Test { __input :: String
+                 , __output :: String
+                 }
+                 deriving Generic
+
+instance FromJSON Test
+instance ToJSON Test
+
+makeLenses ''Test
+
 getCourses :: DB [Course]
 getCourses = do
     c <- ask
@@ -87,7 +97,7 @@ getCourse id = do
 
     pure $ course & _problems .~ problems
 
-getTests :: Int -> DB [(String, String)]
+getTests :: Int -> DB [Test]
 getTests id = do
     c <- ask
     rows <- liftIO $ do
@@ -96,5 +106,5 @@ getTests id = do
         fetchAllRows st
 
     forM rows $ \row -> case row of
-                            [_, input, output, _] -> pure $ (input, output) & both %~ fromSql
+                            [_, input, output, _] -> pure $ Test (fromSql input) (fromSql output)
                             _ -> throwError $ err500 { errBody = Chars "Unknown Error" }

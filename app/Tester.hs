@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric #-}
+
 module Tester where
 
 import Prelude hiding (log)
@@ -7,20 +9,29 @@ import Control.Monad.Except
 import Control.Lens hiding ((<.>))
 import Control.Concurrent.STM
 import Data.Text.Lens
+import Data.Aeson.Lens
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX
+import Data.Aeson
+import GHC.Generics
 import System.IO
 import System.Exit
 import System.FilePath
 import System.Directory
 import System.Process
 
+import Database
+
 type Tester = ReaderT (TVar TestLogs) (ExceptT TestError IO)
 
 data TestError = TestUnknownError
+               | TestUnsupportedLanguageError
                | TestCompileError
-               | TestFailed
-               deriving Show
+               | TestWrongAnswerError Test
+               deriving Generic
+
+instance FromJSON TestError
+instance ToJSON TestError
 
 type TestLogs = [String]
 
@@ -42,9 +53,11 @@ finally mfin m = do
 unwrap :: Maybe a -> Tester a
 unwrap = maybe (throwError TestUnknownError) pure
 
-data Test = Test Language [(String, String)]
-
 data Language = Haskell | C | Cpp | Python
+    deriving Generic
+
+instance FromJSON Language
+instance ToJSON Language
 
 options :: Language -> String -> (String, [String], [String], [String])
 options lang filename = (source, compile lang, run lang, clean lang)
@@ -78,8 +91,10 @@ checkOutput x y = x' == y'
           stripLines = over lined strip
           strip = over packed T.strip
 
-test :: Test -> String -> Tester ()
-test (Test lang tests) input = do
+test :: String -> String -> [Test] -> Tester ()
+test input langJSON tests = do
+    lang <- unwrap $ langJSON ^? _JSON
+
     filename <- liftIO getPOSIXTime >>= pure . ("tmp"</>) . (show :: Int -> FilePath) . round
     let (source, compileOptions, runOptions, cleanOptions) = options lang filename
     liftIO $ writeFile source input
@@ -103,20 +118,25 @@ test (Test lang tests) input = do
 
         case runOptions of
             [] -> pure ()
-            (prog:args) -> forM_ tests $ \(x, y) -> do
+            (prog:args) -> forM_ tests $ \t -> do
                 let process = (proc prog args){ std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe }
                 (mbStdin, mbStdout, mbStderr, handle) <- liftIO $ createProcess process
                 stdin <- unwrap mbStdin
                 stdout <- unwrap mbStdout
                 stderr <- unwrap mbStderr
 
-                exitCode <- liftIO $ hPutStrLn stdin x >> hClose stdin >> waitForProcess handle
+                exitCode <- liftIO $ hPutStrLn stdin (t ^. _input) >> hClose stdin >> waitForProcess handle
                 case exitCode of
                     ExitSuccess -> do
-                        y' <- liftIO $ hGetContents stdout
-                        unless (checkOutput y y') $ log "Wrong answer" >> throwError TestFailed
+                        let x = t ^. _output
+                        y <- liftIO $ hGetContents stdout
+
+                        unless (checkOutput x y) $ do
+                            log "Wrong answer"
+                            throwError $ TestWrongAnswerError t
+
                         log "Ok"
                     ExitFailure code -> do
                         let msg = "Runtime error. Program finished with exit code " ++ show code
                         liftIO (hGetContents stderr) >>= log . (++msg)
-                        throwError TestFailed
+                        throwError $ TestWrongAnswerError t
