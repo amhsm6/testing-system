@@ -1,6 +1,24 @@
+const knownExtensions = {
+    "hs": "Haskell",
+    "c": "C",
+    "cpp": "Cpp",
+    "py": "Python"
+};
+
 onload = async () => {
     const uploadInput = document.querySelector("#upload-file-input");
     uploadInput.value = null;
+
+    const languageSelector = document.querySelector("#language-selector");
+    languageSelector.value = "";
+
+    uploadInput.oninput = () => {
+        if (uploadInput.files.length != 1) { return; }
+
+        const filename = uploadInput.files[0].name;
+        const ext = filename.split('.').pop();
+        languageSelector.value = knownExtensions[ext] || "";
+    }
 
     const resp = await fetch("/api" + location.pathname);
     const course = await resp.json();
@@ -24,6 +42,8 @@ onload = async () => {
         navpanel.children[i].classList.add("navbox-active");
 
         description.innerHTML = course.__problems[i].__description;
+        uploadInput.value = null;
+        languageSelector.value = "";
 
         lastSelectedProblem = i;
     };
@@ -42,22 +62,23 @@ onload = async () => {
     selectProblem(0);
 
     const uploadButton = document.querySelector("#upload-solution");
-    uploadButton.addEventListener("click", _ => {
+    uploadButton.onclick = () => {
         const ws = new WebSocket(`/api/submit/${currSelectedProblemId}`);
 
         ws.onopen = async () => {
             if (uploadInput.files.length != 1) { return; }
+            if (languageSelector.value === "") { return; }
 
             const content = await uploadInput.files[0].text();
             ws.send(content);
-
-            ws.send(JSON.stringify("Haskell"));
+            ws.send(JSON.stringify(languageSelector.value));
 
             uploadInput.value = null;
+            languageSelector.value = "";
         };
 
         ws.onmessage = msg => {
             console.log(msg);
         };
-    });
+    };
 }

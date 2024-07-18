@@ -28,6 +28,7 @@ data TestError = TestUnknownError
                | TestUnsupportedLanguageError
                | TestCompileError
                | TestWrongAnswerError Test
+               | TestRuntimeError Test
                deriving Generic
 
 instance FromJSON TestError
@@ -139,4 +140,4 @@ test input langJSON tests = do
                     ExitFailure code -> do
                         let msg = "Runtime error. Program finished with exit code " ++ show code
                         liftIO (hGetContents stderr) >>= log . (++msg)
-                        throwError $ TestWrongAnswerError t
+                        throwError $ TestRuntimeError t

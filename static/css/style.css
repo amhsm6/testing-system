@@ -58,7 +58,7 @@ a {
 
 #problem-selector {
     width: round(50%, 50px);
-    margin-bottom: 50!important;
+    margin-bottom: 50px;
     border: 5px solid silver;
     background-color: white;
 }
@@ -99,6 +99,18 @@ a {
     margin-bottom: 30px;
 }
 
+#upload-form-row {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#upload-form .left {
+    display: flex;
+    flex-direction: column;
+}
+
 #upload-file-input {
     margin-top: 10px;
     margin-bottom: 20px;
@@ -107,7 +119,6 @@ a {
 
 #upload-solution {
     float: right;
-    position: relative;
     padding: 3px 10px;
     border: none;
     border-radius: 8px;
