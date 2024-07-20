@@ -20,7 +20,7 @@ import System.FilePath
 import System.Directory
 import System.Process
 
-import Database
+import Database.Course
 
 type Tester = ReaderT (TVar TestLogs) (ExceptT TestError IO)
 
@@ -94,7 +94,7 @@ checkOutput x y = x' == y'
 
 test :: String -> String -> [Test] -> Tester ()
 test input langJSON tests = do
-    lang <- unwrap $ langJSON ^? _JSON
+    lang <- withError (const TestUnsupportedLanguageError) $ unwrap $ langJSON ^? _JSON
 
     filename <- liftIO getPOSIXTime >>= pure . ("tmp"</>) . (show :: Int -> FilePath) . round
     let (source, compileOptions, runOptions, cleanOptions) = options lang filename
@@ -111,10 +111,9 @@ test input langJSON tests = do
 
                 exitCode <- liftIO $ waitForProcess handle
                 case exitCode of
-                    ExitSuccess -> liftIO (hGetContents stdout) >>= log . (++"Compile ok.")
+                    ExitSuccess -> log "Compile ok"
                     ExitFailure code -> do
-                        let msg = "Compile error. Program finished with exit code " ++ show code ++ "."
-                        liftIO (hGetContents stderr) >>= log . (++msg)
+                        log $ "Compile error. Program finished with exit code " ++ show code ++ "."
                         throwError TestCompileError
 
         case runOptions of
@@ -135,8 +134,8 @@ test input langJSON tests = do
                         unless correct $ do
                             log "Wrong answer"
                             throwError $ TestWrongAnswerError t
+
                         log "Ok"
                     ExitFailure code -> do
-                        let msg = "Runtime error. Program finished with exit code " ++ show code ++ "."
-                        liftIO (hGetContents stderr) >>= log . (++msg)
+                        log $ "Runtime error. Program finished with exit code " ++ show code ++ "."
                         throwError $ TestRuntimeError t

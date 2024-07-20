@@ -1,26 +1,17 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Database where
+module Database.Course where
 
 import Control.Monad
 import Control.Monad.Reader
 import Control.Lens
-import Data.ByteString.Lens
 import Data.Aeson
 import GHC.Generics
-import System.Environment
 import Servant
 import Database.HDBC
-import Database.HDBC.PostgreSQL
 
-type DB = ReaderT Connection Handler
-
-runDB :: DB a -> Handler a
-runDB m = do
-    let cfg = "host = +DBHOST user = +DBUSER password = +DBPASS dbname = +DBNAME"
-    conn <- liftIO $ mapMOf (worded . filtered (elem '+')) (getEnv . drop 1) cfg >>= connectPostgreSQL
-    runReaderT m conn
+import Database.Monad
 
 data Course = Course { __courseId :: Int
                      , __name :: String
@@ -62,9 +53,9 @@ getCourses = do
 
     forM rows $ \row -> case row of
                             [id, name] -> pure $ Course (fromSql id) (fromSql name) []
-                            _ -> throwError $ err500 { errBody = Chars "Unknown Error" }
+                            _ -> throwError err500
 
-getCourse :: Int -> DB Course
+getCourse :: Int -> DB (Maybe Course)
 getCourse id = do
     c <- ask
 
@@ -74,8 +65,9 @@ getCourse id = do
         fetchRow st
 
     course <- case row of
-                  Just [id, name] -> pure $ Course (fromSql id) (fromSql name) []
-                  _ -> throwError $ err500 { errBody = Chars "Unknown Error" }
+                  Just [id, name] -> pure $ Just $ Course (fromSql id) (fromSql name) []
+                  Nothing -> pure Nothing
+                  _ -> throwError err500
 
     rows <- liftIO $ do
         st <- prepare c "SELECT * FROM problems WHERE course_id = ? ORDER BY problem_id"
@@ -84,9 +76,19 @@ getCourse id = do
 
     problems <- forM rows $ \row -> case row of
                                         [id, desc, _] -> pure $ Problem (fromSql id) (fromSql desc)
-                                        _ -> throwError $ err500 { errBody = Chars "Unknown Error" }
+                                        _ -> throwError err500
 
-    pure $ course & _problems .~ problems
+    pure $ course & _Just . _problems .~ problems
+
+checkProblem :: Int -> DB Bool
+checkProblem id = do
+    c <- ask
+    row <- liftIO $ do
+        st <- prepare c "SELECT * FROM problems WHERE problem_id = ?"
+        execute st [toSql id]
+        fetchRow st
+    
+    pure $ has _Just row
 
 getTests :: Int -> DB [Test]
 getTests id = do
@@ -98,4 +100,4 @@ getTests id = do
 
     forM rows $ \row -> case row of
                             [_, input, output, _] -> pure $ Test (fromSql input) (fromSql output)
-                            _ -> throwError $ err500 { errBody = Chars "Unknown Error" }
+                            _ -> throwError err500

@@ -15,7 +15,9 @@ executable testing-system
     main-is:          Main.hs
 
     other-modules:    Tester
-                      Database
+                      Database.Monad
+                      Database.Course
+                      Database.User
 
     build-depends:    base ^>=4.18.2.1
                     , mtl

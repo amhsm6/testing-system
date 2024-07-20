@@ -96,6 +96,8 @@ onload = async () => {
             problemStatus.innerHTML = "<span>PROCESSING</span>";
             problemStatus.style.backgroundColor = "yellow";
             uploadResults.style.display = "";
+
+            scroll(0, 0);
         };
 
         ws.onmessage = msg => {
