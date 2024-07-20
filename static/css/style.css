@@ -135,3 +135,39 @@ a {
     transform: translate(0, 5px);
     transition: all 0.1s;
 }
+
+#upload-results {
+    width: 40%;
+    position: absolute;
+    top: 150;
+    padding-left: 40px;
+    padding-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+    border: 5px solid black;
+    border-radius: 5px;
+    background-color: #ccc;
+}
+
+#upload-log span {
+    display: block;
+    font-size: 1.1em;
+    white-space: pre-line;
+}
+
+#problem-status {
+    margin-top: 20px;
+    background-color: green;
+}
+
+#problem-status span {
+    font-size: 1.3em;
+}
+
+#close-results {
+    align-self: end;
+    margin-top: 20px;
+    margin-right: 20px;
+    cursor: pointer;
+}

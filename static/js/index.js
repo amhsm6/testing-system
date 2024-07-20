@@ -1,8 +1,8 @@
 onload = async () => {
     const link = document.querySelector("#header a[href = '/']");
-    link.style.setProperty("color", "gray");
-    link.style.setProperty("border-bottom", "2px solid gray");
-    link.style.setProperty("transition", "none");
+    link.style.color = "gray";
+    link.style.borderBottom = "2px solid gray";
+    link.style.transition = "none";
 
     const resp = await fetch("/api/courses");
     const courses = await resp.json();

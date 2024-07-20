@@ -111,9 +111,9 @@ test input langJSON tests = do
 
                 exitCode <- liftIO $ waitForProcess handle
                 case exitCode of
-                    ExitSuccess -> liftIO (hGetContents stdout) >>= log . (++"Compile ok")
-                    ExitFailure x -> do
-                        let msg = "Compile error. Program finished with exit code " ++ show x
+                    ExitSuccess -> liftIO (hGetContents stdout) >>= log . (++"Compile ok.")
+                    ExitFailure code -> do
+                        let msg = "Compile error. Program finished with exit code " ++ show code ++ "."
                         liftIO (hGetContents stderr) >>= log . (++msg)
                         throwError TestCompileError
 
@@ -129,15 +129,14 @@ test input langJSON tests = do
                 exitCode <- liftIO $ hPutStrLn stdin (t ^. _input) >> hClose stdin >> waitForProcess handle
                 case exitCode of
                     ExitSuccess -> do
-                        let x = t ^. _output
-                        y <- liftIO $ hGetContents stdout
+                        out <- liftIO $ hGetContents stdout
+                        let correct = checkOutput (t ^. _output) out
 
-                        unless (checkOutput x y) $ do
+                        unless correct $ do
                             log "Wrong answer"
                             throwError $ TestWrongAnswerError t
-
                         log "Ok"
                     ExitFailure code -> do
-                        let msg = "Runtime error. Program finished with exit code " ++ show code
+                        let msg = "Runtime error. Program finished with exit code " ++ show code ++ "."
                         liftIO (hGetContents stderr) >>= log . (++msg)
                         throwError $ TestRuntimeError t

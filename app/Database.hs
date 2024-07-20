@@ -18,14 +18,8 @@ type DB = ReaderT Connection Handler
 
 runDB :: DB a -> Handler a
 runDB m = do
-    conn <- liftIO $ do
-        cfg <- mapMOf (traverse . _2) getEnv $ [ ("host", "DBHOST")
-                                               , ("user", "DBUSER")
-                                               , ("password", "DBPASS")
-                                               , ("dbname", "DBNAME")
-                                               ]
-        connectPostgreSQL $ unwords $ map (\(x, y) -> x ++ " = " ++ y) cfg
-
+    let cfg = "host = +DBHOST user = +DBUSER password = +DBPASS dbname = +DBNAME"
+    conn <- liftIO $ mapMOf (worded . filtered (elem '+')) (getEnv . drop 1) cfg >>= connectPostgreSQL
     runReaderT m conn
 
 data Course = Course { __courseId :: Int

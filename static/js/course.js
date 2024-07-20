@@ -61,6 +61,23 @@ onload = async () => {
 
     selectProblem(0);
 
+    const uploadResults = document.querySelector("#upload-results");
+    const uploadLog = document.querySelector("#upload-log");
+    const problemStatus = document.querySelector("#problem-status");
+    const closeButton = document.querySelector("#close-results");
+
+    onkeydown = e => {
+        if (e.key == "Escape") {
+            uploadResults.style.display = "none";
+            uploadLog.replaceChildren();
+        }
+    }
+
+    closeButton.onclick = () => {
+        uploadResults.style.display = "none";
+        uploadLog.replaceChildren();
+    };
+
     const uploadButton = document.querySelector("#upload-solution");
     uploadButton.onclick = () => {
         const ws = new WebSocket(`/api/submit/${currSelectedProblemId}`);
@@ -75,10 +92,34 @@ onload = async () => {
 
             uploadInput.value = null;
             languageSelector.value = "";
+
+            problemStatus.innerHTML = "<span>PROCESSING</span>";
+            problemStatus.style.backgroundColor = "yellow";
+            uploadResults.style.display = "";
         };
 
         ws.onmessage = msg => {
-            console.log(msg);
+            const data = JSON.parse(msg.data);
+
+            if (data["Right"]) {
+                problemStatus.innerHTML = "<span>PASSED</span>";
+                problemStatus.style.backgroundColor = "green";
+                closeButton.style.display = "";
+            } else if (data["Left"]) {
+                problemStatus.innerHTML = "<span>FAILED</span>";
+                problemStatus.style.backgroundColor = "red";
+                closeButton.style.display = "";
+
+                console.log(data["Left"]);
+            } else {
+                uploadLog.replaceChildren();
+                data.forEach(log => {
+                    uploadLog.insertAdjacentHTML(
+                        "beforeend",
+                        `<span>${log}</span>`
+                    );
+                });
+            }
         };
     };
 }

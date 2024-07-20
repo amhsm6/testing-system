@@ -64,7 +64,7 @@ server = coursesH :<|> courseH :<|> submitH :<|> staticH
 
                               writeTVar logsRead $ length xs
                               pure xs
-
+                              
                           sendTextData conn $ xs ^. re _JSON . packed
                   thread <- forkIO sendLogs
 
