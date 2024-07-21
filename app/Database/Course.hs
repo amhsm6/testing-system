@@ -6,20 +6,20 @@ module Database.Course where
 import Control.Monad
 import Control.Monad.Reader
 import Control.Lens
-import Data.Aeson
-import GHC.Generics
+import Data.Aeson (FromJSON, ToJSON)
+import GHC.Generics (Generic)
 import Servant
 import Database.HDBC
 
 import Database.Monad
 
-data Course = Course { __courseId :: Int
+data Course = Course { __courseId :: Maybe Int
                      , __name :: String
                      , __problems :: [Problem]
                      }
                      deriving Generic
 
-data Problem = Problem { __problemId :: Int
+data Problem = Problem { __problemId :: Maybe Int
                        , __description :: String
                        }
                        deriving Generic
@@ -33,7 +33,8 @@ instance ToJSON Course
 makeLenses ''Course
 makeLenses ''Problem
 
-data Test = Test { __input :: String
+data Test = Test { __testId :: Maybe Int
+                 , __input :: String
                  , __output :: String
                  }
                  deriving Generic
@@ -52,7 +53,7 @@ getCourses = do
         fetchAllRows st
 
     forM rows $ \row -> case row of
-                            [courseId, name] -> pure $ Course (fromSql courseId) (fromSql name) []
+                            [courseId, name] -> pure $ Course (Just $ fromSql courseId) (fromSql name) []
                             _ -> throwError err500
 
 getCourse :: Int -> DB (Maybe Course)
@@ -65,7 +66,7 @@ getCourse courseId = do
         fetchRow st
 
     course <- case row of
-                  Just [name] -> pure $ Just $ Course courseId (fromSql name) []
+                  Just [name] -> pure $ Just $ Course (Just courseId) (fromSql name) []
                   Nothing -> pure Nothing
                   _ -> throwError err500
 
@@ -75,7 +76,8 @@ getCourse courseId = do
         fetchAllRows st
 
     problems <- forM rows $ \row -> case row of
-                                        [problemId, desc] -> pure $ Problem (fromSql problemId) (fromSql desc)
+                                        [problemId, desc] -> do
+                                            pure $ Problem (Just $ fromSql problemId) (fromSql desc)
                                         _ -> throwError err500
 
     pure $ course & _Just . _problems .~ problems
@@ -92,10 +94,11 @@ getTests :: Int -> DB [Test]
 getTests problemId = do
     c <- ask
     rows <- liftIO $ do
-        st <- prepare c "SELECT input, output FROM tests WHERE problem_id = ? ORDER BY test_id"
+        st <- prepare c "SELECT test_id, input, output FROM tests WHERE problem_id = ? ORDER BY test_id"
         execute st [toSql problemId]
         fetchAllRows st
 
     forM rows $ \row -> case row of
-                            [input, output] -> pure $ Test (fromSql input) (fromSql output)
+                            [testId, input, output] -> do
+                                pure $ Test (Just $ fromSql testId) (fromSql input) (fromSql output)
                             _ -> throwError err500

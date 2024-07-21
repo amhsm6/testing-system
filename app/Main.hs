@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Main where
 
@@ -13,10 +14,12 @@ import Control.Concurrent.STM
 import Data.ByteString.Lens
 import Data.Text.Lazy.Lens
 import Data.Aeson.Lens
+import Data.Aeson (FromJSON, ToJSON)
+import GHC.Generics (Generic)
 import Configuration.Dotenv
 import Servant
 import Servant.API.WebSocket
-import Network.WebSockets hiding (Text)
+import Network.WebSockets
 import Network.Wai.Handler.Warp
 import Network.HTTP.Media ((//))
 
@@ -28,7 +31,7 @@ import Database.User
 data HTML
 
 instance Accept HTML where
-    contentType _ = Chars "text" // Chars "html"
+    contentType _ =  ("text" ^. packedChars) // ("html" ^. packedChars)
 
 instance MimeRender HTML String where
     mimeRender _ = view packedChars
@@ -36,10 +39,17 @@ instance MimeRender HTML String where
 type Api = "api" :> "courses" :> Get '[JSON] [Course]
       :<|> "api" :> "course" :> Capture "courseId" Int :> Get '[JSON] (Maybe Course)
       :<|> "api" :> "submit" :> Capture "problemId" Int :> WebSocket
-      :<|> "api" :> "register" :> ReqBody '[JSON] User :> Post '[JSON] String
+      :<|> "api" :> "register" :> ReqBody '[JSON] User :> Post '[JSON] RegResp
       :<|> Get '[HTML] String
       :<|> "course" :> Capture "courseId" Int :> Get '[HTML] String
       :<|> Raw
+
+data RegResp = EmailInUser
+             | Ok { token :: String }
+             deriving Generic
+
+instance FromJSON RegResp
+instance ToJSON RegResp
 
 api :: Proxy Api
 api = Proxy
@@ -53,7 +63,7 @@ server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> indexPageH :<|> cours
           submitH problemId conn = do
               validProblem <- checkProblem problemId
               unless validProblem $ do
-                  liftIO $ sendClose conn $ Text "The problem does not exist"
+                  liftIO $ sendClose conn $ "The problem does not exist" ^. packed
                   throwError err404
 
               src <- view unpacked <$> liftIO (receiveData conn)
@@ -61,32 +71,34 @@ server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> indexPageH :<|> cours
               tests <- getTests problemId
 
               liftIO $ do
-                  logs <- atomically $ newTVar []
-                  logsRead <- atomically $ newTVar 0
+                  q <- atomically newTQueue
+                  tlogs <- atomically $ newTVar []
 
                   let sendLogs = forever $ do
-                          xs <- atomically $ do
-                              xs <- readTVar logs
-                              y <- readTVar logsRead
-                              check $ length xs > y
+                          logs <- atomically $ do
+                              log <- readTQueue q
+                              modifyTVar tlogs (++[log])
 
-                              writeTVar logsRead $ length xs
-                              pure xs
+                              readTVar tlogs
                               
-                          sendTextData conn $ xs ^. re _JSON . packed
-                  thread <- forkIO sendLogs
+                          sendTextData conn $ logs ^. re _JSON . packed
+                          threadDelay 10
+                  logThread <- forkIO sendLogs
 
-                  res <- runTester logs $ test src lang tests
+                  res <- runTester q $ test src lang tests
 
-                  atomically $ do
-                      xs <- readTVar logs
-                      y <- readTVar logsRead
-                      check $ length xs == y
-                  killThread thread
+                  atomically $ isEmptyTQueue q >>= check
+                  killThread logThread
 
                   sendTextData conn $ res ^. re _JSON . packed
 
-          regH user = undefined
+          regH user = do
+              userExists <- has _Just <$> getUser (user ^. _email)
+              if userExists then do
+                  pure EmailInUser
+              else do
+                  userId <- createUser user
+                  pure $ Ok "token"
 
           indexPageH = liftIO $ readFile "static/html/index.html"
 
@@ -94,7 +106,7 @@ server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> indexPageH :<|> cours
               course <- getCourse courseId
               case course of
                   Just _ -> liftIO $ readFile "static/html/course.html"
-                  Nothing -> throwError $ err404 { errBody = Chars "The course does not exist" }
+                  Nothing -> throwError $ err404 { errBody = "The course does not exist" ^. packedChars }
 
           staticH = serveDirectoryWebApp "static"
 

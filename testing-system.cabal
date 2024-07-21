@@ -7,7 +7,7 @@ maintainer:      amhsm6
 build-type:      Simple
 
 common warnings
-    ghc-options: -Wall -threaded
+    ghc-options: -threaded -Wall
 
 executable testing-system
     import:           warnings

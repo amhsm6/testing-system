@@ -6,14 +6,15 @@ module Database.User where
 import Control.Monad
 import Control.Monad.Reader
 import Control.Lens
-import Data.Aeson
-import GHC.Generics
+import Data.Aeson (FromJSON, ToJSON)
+import GHC.Generics (Generic)
 import Servant
 import Database.HDBC
 
 import Database.Monad
 
-data User = User { __email :: String
+data User = User { __userId :: Maybe Int
+                 , __email :: String
                  , __pass :: String
                  }
                  deriving Generic
@@ -27,12 +28,12 @@ getUser :: String -> DB (Maybe User)
 getUser email = do
     c <- ask
     row <- liftIO $ do
-        st <- prepare c "SELECT password FROM users WHERE email = ?"
+        st <- prepare c "SELECT user_id, password FROM users WHERE email = ?"
         execute st [toSql email]
         fetchRow st
 
     case row of
-        Just [pass] -> pure $ Just $ User email (fromSql pass)
+        Just [userId, pass] -> pure $ Just $ User (Just $ fromSql userId) email (fromSql pass)
         Nothing -> pure Nothing
         _ -> throwError err500
 

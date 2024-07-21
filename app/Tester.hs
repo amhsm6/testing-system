@@ -6,14 +6,14 @@ import Prelude hiding (log)
 import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.Except
-import Control.Lens hiding ((<.>))
+import Control.Lens
 import Control.Concurrent.STM
 import Data.Text.Lens
 import Data.Aeson.Lens
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX
-import Data.Aeson
-import GHC.Generics
+import Data.Aeson (FromJSON, ToJSON)
+import GHC.Generics (Generic)
 import System.IO
 import System.Exit
 import System.FilePath
@@ -22,7 +22,7 @@ import System.Process
 
 import Database.Course
 
-type Tester = ReaderT (TVar TestLogs) (ExceptT TestError IO)
+type Tester = ReaderT (TQueue String) (ExceptT TestError IO)
 
 data TestError = TestUnknownError
                | TestUnsupportedLanguageError
@@ -34,15 +34,11 @@ data TestError = TestUnknownError
 instance FromJSON TestError
 instance ToJSON TestError
 
-type TestLogs = [String]
-
-runTester :: TVar TestLogs -> Tester a -> IO (Either TestError a)
-runTester logs m = runExceptT $ runReaderT m logs
+runTester :: TQueue String -> Tester a -> IO (Either TestError a)
+runTester q m = runExceptT $ runReaderT m q
 
 log :: String -> Tester ()
-log x = do
-    logs <- ask
-    liftIO $ atomically $ modifyTVar logs (++[x])
+log x = ask >>= \q -> liftIO $ atomically $ writeTQueue q x
 
 finally :: Tester a -> Tester b -> Tester b
 finally mfin m = do
@@ -62,7 +58,7 @@ instance ToJSON Language
 
 options :: Language -> String -> (String, [String], [String], [String])
 options lang filename = (source, compile lang, run lang, clean lang)
-    where source = filename <.> ext lang
+    where source = addExtension filename $ ext lang
 
           ext Haskell = "hs"
           ext C = "c"
@@ -77,7 +73,7 @@ options lang filename = (source, compile lang, run lang, clean lang)
           run Python = ["python3", source]
           run _ = ["./" ++ filename]
 
-          clean Haskell = [filename, filename <.> "o", filename <.> "hi", source]
+          clean Haskell = [filename, addExtension filename "o", addExtension filename "hi", source]
           clean C = [filename, source]
           clean Cpp = [filename, source]
           clean Python = [source]
