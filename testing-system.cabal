@@ -30,6 +30,7 @@ executable testing-system
                     , filepath
                     , directory
                     , process
+                    , bcrypt
                     , dotenv
                     , servant-server
                     , servant-websockets

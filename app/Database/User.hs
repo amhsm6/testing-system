@@ -23,32 +23,30 @@ instance ToJSON User
 
 makeLenses ''User
 
-checkUser :: String -> DB Bool
-checkUser email = do
+getUser :: String -> DB (Maybe User)
+getUser email = do
     c <- ask
-    liftIO $ do
-        st <- prepare c "SELECT * FROM users WHERE email = ?"
+    row <- liftIO $ do
+        st <- prepare c "SELECT password FROM users WHERE email = ?"
         execute st [toSql email]
-        has _Just <$> fetchRow st
+        fetchRow st
+
+    case row of
+        Just [pass] -> pure $ Just $ User email (fromSql pass)
+        Nothing -> pure Nothing
+        _ -> throwError err500
 
 createUser :: User -> DB Int
 createUser user = do
     c <- ask
-    liftIO $ withTransaction c $ \c -> do
+    row <- liftIO $ withTransaction c $ \c -> do
         st <- prepare c "INSERT INTO users (email, password) VALUES (?, ?)"
         execute st [toSql $ user ^. _email, toSql $ user ^. _pass]
 
-    validateUser user >>= maybe (throwError err500) pure
-
-validateUser :: User -> DB (Maybe Int)
-validateUser user = do
-    c <- ask
-    row <- liftIO $ do
-        st <- prepare c "SELECT user_id FROM users WHERE email = ? AND password = ?"
+        st <- prepare c "SELECT userId FROM users WHERE email = ? AND password = ?"
         execute st [toSql $ user ^. _email, toSql $ user ^. _pass]
         fetchRow st
 
     case row of
-        Just [userId] -> pure $ Just $ fromSql userId
-        Nothing -> pure Nothing
+        Just [userId] -> pure $ fromSql userId
         _ -> throwError err500

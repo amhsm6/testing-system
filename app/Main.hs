@@ -86,7 +86,7 @@ server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> indexPageH :<|> cours
 
                   sendTextData conn $ res ^. re _JSON . packed
 
-          regH user = error "should hash the password and create user"
+          regH user = undefined
 
           indexPageH = liftIO $ readFile "static/html/index.html"
 
