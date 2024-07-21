@@ -47,57 +47,55 @@ getCourses :: DB [Course]
 getCourses = do
     c <- ask
     rows <- liftIO $ do
-        st <- prepare c "SELECT * FROM courses"
+        st <- prepare c "SELECT course_id, name FROM courses ORDER BY course_id"
         execute st []
         fetchAllRows st
 
     forM rows $ \row -> case row of
-                            [id, name] -> pure $ Course (fromSql id) (fromSql name) []
+                            [courseId, name] -> pure $ Course (fromSql courseId) (fromSql name) []
                             _ -> throwError err500
 
 getCourse :: Int -> DB (Maybe Course)
-getCourse id = do
+getCourse courseId = do
     c <- ask
 
     row <- liftIO $ do
-        st <- prepare c "SELECT * FROM courses WHERE course_id = ? ORDER BY course_id"
-        execute st [toSql id]
+        st <- prepare c "SELECT name FROM courses WHERE course_id = ?"
+        execute st [toSql courseId]
         fetchRow st
 
     course <- case row of
-                  Just [id, name] -> pure $ Just $ Course (fromSql id) (fromSql name) []
+                  Just [name] -> pure $ Just $ Course courseId (fromSql name) []
                   Nothing -> pure Nothing
                   _ -> throwError err500
 
     rows <- liftIO $ do
-        st <- prepare c "SELECT * FROM problems WHERE course_id = ? ORDER BY problem_id"
-        execute st [toSql id]
+        st <- prepare c "SELECT problem_id, description FROM problems WHERE course_id = ? ORDER BY problem_id"
+        execute st [toSql courseId]
         fetchAllRows st
 
     problems <- forM rows $ \row -> case row of
-                                        [id, desc, _] -> pure $ Problem (fromSql id) (fromSql desc)
+                                        [problemId, desc] -> pure $ Problem (fromSql problemId) (fromSql desc)
                                         _ -> throwError err500
 
     pure $ course & _Just . _problems .~ problems
 
 checkProblem :: Int -> DB Bool
-checkProblem id = do
+checkProblem problemId = do
     c <- ask
-    row <- liftIO $ do
+    liftIO $ do
         st <- prepare c "SELECT * FROM problems WHERE problem_id = ?"
-        execute st [toSql id]
-        fetchRow st
-    
-    pure $ has _Just row
+        execute st [toSql problemId]
+        has _Just <$> fetchRow st
 
 getTests :: Int -> DB [Test]
-getTests id = do
+getTests problemId = do
     c <- ask
     rows <- liftIO $ do
-        st <- prepare c "SELECT * FROM tests WHERE problem_id = ? ORDER BY test_id"
-        execute st [toSql id]
+        st <- prepare c "SELECT input, output FROM tests WHERE problem_id = ? ORDER BY test_id"
+        execute st [toSql problemId]
         fetchAllRows st
 
     forM rows $ \row -> case row of
-                            [_, input, output, _] -> pure $ Test (fromSql input) (fromSql output)
+                            [input, output] -> pure $ Test (fromSql input) (fromSql output)
                             _ -> throwError err500

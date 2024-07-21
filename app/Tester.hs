@@ -49,7 +49,7 @@ finally mfin m = do
     x <- tryError m
     case x of
         Left e -> mfin >> throwError e
-        Right x -> mfin >> pure x
+        Right a -> mfin >> pure a
 
 unwrap :: Maybe a -> Tester a
 unwrap = maybe (throwError TestUnknownError) pure
@@ -94,7 +94,7 @@ checkOutput x y = x' == y'
 
 test :: String -> String -> [Test] -> Tester ()
 test input langJSON tests = do
-    lang <- withError (const TestUnsupportedLanguageError) $ unwrap $ langJSON ^? _JSON
+    lang <- withError (const TestUnsupportedLanguageError) $ unwrap $ langJSON ^. pre _JSON
 
     filename <- liftIO getPOSIXTime >>= pure . ("tmp"</>) . (show :: Int -> FilePath) . round
     let (source, compileOptions, runOptions, cleanOptions) = options lang filename
@@ -105,9 +105,7 @@ test input langJSON tests = do
             [] -> pure ()
             (prog:args) -> do
                 let process = (proc prog args){ std_out = CreatePipe, std_err = CreatePipe }
-                (_, mbStdout, mbStderr, handle) <- liftIO $ createProcess process
-                stdout <- unwrap mbStdout
-                stderr <- unwrap mbStderr
+                handle <- view _4 <$> liftIO (createProcess process)
 
                 exitCode <- liftIO $ waitForProcess handle
                 case exitCode of
@@ -120,10 +118,11 @@ test input langJSON tests = do
             [] -> pure ()
             (prog:args) -> forM_ tests $ \t -> do
                 let process = (proc prog args){ std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe }
-                (mbStdin, mbStdout, mbStderr, handle) <- liftIO $ createProcess process
-                stdin <- unwrap mbStdin
-                stdout <- unwrap mbStdout
-                stderr <- unwrap mbStderr
+                handles <- liftIO $ createProcess process
+
+                let handle = handles ^. _4
+                stdin <- unwrap $ handles ^. _1
+                stdout <- unwrap $ handles ^. _2
 
                 exitCode <- liftIO $ hPutStrLn stdin (t ^. _input) >> hClose stdin >> waitForProcess handle
                 case exitCode of
