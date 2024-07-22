@@ -44,22 +44,30 @@ type Api = "api" :> "courses" :> Get '[JSON] [Course]
       :<|> "api" :> "course" :> Capture "courseId" Int :> Get '[JSON] (Maybe Course)
       :<|> "api" :> "submit" :> Capture "problemId" Int :> WebSocket
       :<|> "api" :> "register" :> ReqBody '[JSON] User :> Post '[JSON] RegResp
+      :<|> "api" :> "auth" :> ReqBody '[JSON] User :> Post '[JSON] AuthResp
       :<|> Get '[HTML] String
       :<|> "course" :> Capture "courseId" Int :> Get '[HTML] String
       :<|> Raw
 
-data RegResp = EmailInUse
-             | Ok { token :: String }
+data RegResp = RegEmailInUse
+             | RegOk { regToken :: String }
              deriving Generic
 
 instance FromJSON RegResp
 instance ToJSON RegResp
 
+data AuthResp = AuthWrongCredentials
+              | AuthOk { authToken :: String }
+              deriving Generic
+
+instance FromJSON AuthResp
+instance ToJSON AuthResp
+
 api :: Proxy Api
 api = Proxy
 
 server :: ServerT Api DB
-server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> indexPageH :<|> coursePageH :<|> staticH
+server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> authH :<|> indexPageH :<|> coursePageH :<|> staticH
     where coursesH = getCourses
 
           courseH = getCourse
@@ -96,26 +104,38 @@ server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> indexPageH :<|> cours
 
                   sendTextData conn $ res ^. re _JSON . packed
 
-          regH user = do
-              userExists <- has _Just <$> getUser (user ^. _email)
+          regH userIn = do
+              userExists <- has _Just <$> getUser (userIn ^. _email)
               if userExists then do
-                  pure EmailInUse
+                  pure RegEmailInUse
               else do
-                  hashedUser <- forMOf (_pass . packedChars) user $ \pass -> do
+                  user <- forMOf (_pass . packedChars) userIn $ \pass -> do
                       hashed <- liftIO $ hashPasswordUsingPolicy fastBcryptHashingPolicy pass
                       maybe (throwError err500) pure hashed
 
                   -- userId <- createUser hashedUser
-
-                  let payload = [("email", hashedUser ^. _email), ("pass", hashedUser ^. _pass)]
+                  let userId = 1509
 
                   secret <- liftIO $ getEnv "JWT_SECRET"
-                  let payload' = payload & traverse . _1 %~ view packed
-                                         & traverse . _2 %~ review _JSON
-                      claims = mempty { unregisteredClaims = ClaimsMap $ M.fromList payload' }
+                  let payload = [("userId", userId)] & traverse . _1 %~ view packed
+                                                     & traverse . _2 %~ review _JSON
+                      claims = mempty { exp = undefined
+                                      , unregisteredClaims = ClaimsMap $ M.fromList payload'
+                                      }
                       token = encodeSigned (EncodeHMACSecret $ secret ^. packedChars) mempty claims
 
-                  pure $ Ok $ token ^. unpacked
+                  pure $ RegOk $ token ^. unpacked
+
+          authH userIn = do
+              mbUser <- getUser $ userIn ^. _email
+              do
+                  user <- mbUser
+                  guard $ validatePassword (user ^. _pass) (userIn ^. _pass)
+                  Just user
+              mbUser >>= \user -> if  then Just user else Nothing
+                  pure 
+              if has _Nothing user' then do
+                  pure AuthWrongCredentials
 
           indexPageH = liftIO $ readFile "static/html/index.html"
 
