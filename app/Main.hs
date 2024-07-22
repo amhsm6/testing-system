@@ -12,10 +12,14 @@ import Control.Lens
 import Control.Concurrent
 import Control.Concurrent.STM
 import Data.ByteString.Lens
-import Data.Text.Lazy.Lens
+import Data.Text.Strict.Lens
 import Data.Aeson.Lens
+import qualified Data.Map as M
 import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generic)
+import System.Environment
+import Crypto.BCrypt
+import Web.JWT
 import Configuration.Dotenv
 import Servant
 import Servant.API.WebSocket
@@ -44,7 +48,7 @@ type Api = "api" :> "courses" :> Get '[JSON] [Course]
       :<|> "course" :> Capture "courseId" Int :> Get '[HTML] String
       :<|> Raw
 
-data RegResp = EmailInUser
+data RegResp = EmailInUse
              | Ok { token :: String }
              deriving Generic
 
@@ -95,10 +99,23 @@ server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> indexPageH :<|> cours
           regH user = do
               userExists <- has _Just <$> getUser (user ^. _email)
               if userExists then do
-                  pure EmailInUser
+                  pure EmailInUse
               else do
-                  userId <- createUser user
-                  pure $ Ok "token"
+                  hashedUser <- forMOf (_pass . packedChars) user $ \pass -> do
+                      hashed <- liftIO $ hashPasswordUsingPolicy fastBcryptHashingPolicy pass
+                      maybe (throwError err500) pure hashed
+
+                  -- userId <- createUser hashedUser
+
+                  let payload = [("email", hashedUser ^. _email), ("pass", hashedUser ^. _pass)]
+
+                  secret <- liftIO $ getEnv "JWT_SECRET"
+                  let payload' = payload & traverse . _1 %~ view packed
+                                         & traverse . _2 %~ review _JSON
+                      claims = mempty { unregisteredClaims = ClaimsMap $ M.fromList payload' }
+                      token = encodeSigned (EncodeHMACSecret $ secret ^. packedChars) mempty claims
+
+                  pure $ Ok $ token ^. unpacked
 
           indexPageH = liftIO $ readFile "static/html/index.html"
 

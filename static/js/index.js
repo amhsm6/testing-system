@@ -1,4 +1,8 @@
+import { jwtDecode } from "https://unpkg.com/jwt-decode/build/esm"
+
 onload = async () => {
+    window.jwtDecode = jwtDecode;
+
     const link = document.querySelector("#header a[href = '/']");
     link.style.color = "gray";
     link.style.borderBottom = "2px solid gray";

@@ -26,11 +26,13 @@ executable testing-system
                     , stm
                     , text
                     , time
+                    , containers
                     , aeson
                     , filepath
                     , directory
                     , process
                     , bcrypt
+                    , jwt
                     , dotenv
                     , servant-server
                     , servant-websockets
