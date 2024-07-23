@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 module Api.Test where
@@ -7,8 +9,10 @@ import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Lens
+import Control.Concurrent
 import Control.Concurrent.STM
-import Data.Text.Lens
+import Data.ByteString.Lens
+import Data.Text.Strict.Lens
 import Data.Aeson.Lens
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX
@@ -19,20 +23,57 @@ import System.Exit
 import System.FilePath
 import System.Directory
 import System.Process
+import Servant
+import Servant.API.WebSocket
+import Network.WebSockets
 
+import DB
+import DB.Problem
 import DB.Test
+
+type TestApi = "api" :> "submit" :> Capture "problemId" Int :> WebSocket
+
+testService :: ServerT TestApi DB
+testService = submitH
+    where submitH problemId conn = do
+              problem <- getProblem problemId
+              when (has _Nothing problem) $ do
+                  liftIO $ sendClose conn $ "The problem does not exist" ^. packed
+                  throwError err404
+
+              src <- view unpacked <$> liftIO (receiveData conn)
+              lang <- view unpacked <$> liftIO (receiveData conn)
+              tests <- getTests problemId
+
+              liftIO $ do
+                  q <- atomically newTQueue
+                  tlogs <- atomically $ newTVar []
+
+                  let sendLogs = forever $ do
+                          logs <- atomically $ do
+                              log <- readTQueue q
+                              modifyTVar tlogs (++[log])
+
+                              readTVar tlogs
+                              
+                          sendTextData conn $ logs ^. re _JSON . packed
+                          threadDelay 10
+                  logThread <- forkIO sendLogs
+
+                  res <- runTester q $ test src lang tests
+
+                  atomically $ isEmptyTQueue q >>= check
+                  killThread logThread
+
+                  --sendTextData conn $ res ^. re _JSON . packed
 
 type Tester = ReaderT (TQueue String) (ExceptT TestError IO)
 
 data TestError = TestUnknownError
                | TestUnsupportedLanguageError
                | TestCompileError
-               | TestWrongAnswerError --Test
-               | TestRuntimeError --Test
-               deriving Generic
-
-instance FromJSON TestError
-instance ToJSON TestError
+               | TestWrongAnswerError Test
+               | TestRuntimeError Test
 
 runTester :: TQueue String -> Tester a -> IO (Either TestError a)
 runTester q m = runExceptT $ runReaderT m q
@@ -128,9 +169,9 @@ test input langJSON tests = do
 
                         unless correct $ do
                             log "Wrong answer"
-                            throwError $ TestWrongAnswerError --t
+                            throwError $ TestWrongAnswerError t
 
                         log "Ok"
                     ExitFailure code -> do
                         log $ "Runtime error. Program finished with exit code " ++ show code ++ "."
-                        throwError $ TestRuntimeError --t
+                        throwError $ TestRuntimeError t

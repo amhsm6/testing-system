@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Api.User where
+module DB.User where
 
 import Control.Monad
 import Control.Monad.Reader

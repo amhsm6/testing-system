@@ -8,24 +8,16 @@ module Main where
 import Control.Monad
 import Control.Monad.Trans
 import Control.Lens
-import Control.Concurrent
-import Control.Concurrent.STM
 import Data.ByteString.Lens
-import Data.Text.Strict.Lens
-import Data.Aeson.Lens
-import Crypto.BCrypt
 import Configuration.Dotenv
 import Servant
-import Servant.API.WebSocket
-import Network.WebSockets
 import Network.Wai.Handler.Warp
 import Network.HTTP.Media ((//))
 
+import Api.Test
+import Api.Course
 import DB
 import DB.Course
-import DB.Problem
-import DB.Test
-import Api.Test
 
 data HTML
 
@@ -35,11 +27,8 @@ instance Accept HTML where
 instance MimeRender HTML String where
     mimeRender _ = view packedChars
 
-type Api = "api" :> "courses" :> Get '[JSON] String
-      :<|> "api" :> "course" :> Capture "courseId" Int :> Get '[JSON] String
-      :<|> "api" :> "submit" :> Capture "problemId" Int :> WebSocket
-      :<|> "api" :> "register" :> ReqBody '[JSON] String :> Post '[JSON] String
-      :<|> "api" :> "auth" :> ReqBody '[JSON] String :> Post '[JSON] String
+type Api = TestApi
+      :<|> CourseApi
       :<|> Get '[HTML] String
       :<|> "course" :> Capture "courseId" Int :> Get '[HTML] String
       :<|> Raw
@@ -48,75 +37,8 @@ api :: Proxy Api
 api = Proxy
 
 server :: ServerT Api DB
-server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> authH :<|> indexPageH :<|> coursePageH :<|> staticH
-    where coursesH = do
-              courses <- getCourses
-
-              let serCourse course = "{}" & atKey ("id" ^. _Key) .~ Just (course ^. _courseId . re _JSON)
-                                          & atKey ("name" ^. _Key) .~ Just (course ^. _name . re _JSON)
-                                          & preview _Value
-              pure $ map serCourse courses ^. re _JSON
-
-          courseH = undefined --getCourse
-
-          submitH problemId conn = do
-              problem <- getProblem problemId
-              when (has _Nothing problem) $ do
-                  liftIO $ sendClose conn $ "The problem does not exist" ^. packed
-                  throwError err404
-
-              src <- view unpacked <$> liftIO (receiveData conn)
-              lang <- view unpacked <$> liftIO (receiveData conn)
-              tests <- getTests problemId
-
-              liftIO $ do
-                  q <- atomically newTQueue
-                  tlogs <- atomically $ newTVar []
-
-                  let sendLogs = forever $ do
-                          logs <- atomically $ do
-                              log <- readTQueue q
-                              modifyTVar tlogs (++[log])
-
-                              readTVar tlogs
-                              
-                          sendTextData conn $ logs ^. re _JSON . packed
-                          threadDelay 10
-                  logThread <- forkIO sendLogs
-
-                  res <- runTester q $ test src lang tests
-
-                  atomically $ isEmptyTQueue q >>= check
-                  killThread logThread
-
-                  sendTextData conn $ res ^. re _JSON . packed
-
-          regH userIn = undefined {-do
-              userExists <- has _Just <$> getUser (userIn ^. _email)
-              if userExists then do
-                  pure RegEmailInUse
-              else do
-                  user <- forMOf (_pass . packedChars) userIn $ \pass -> do
-                      hashed <- liftIO $ hashPasswordUsingPolicy fastBcryptHashingPolicy pass
-                      maybe (throwError err500) pure hashed
-
-                  -- userId <- createUser user
-                  let userId = 1509
-
-                  liftIO (generateToken userId) >>= pure . RegOk-}
-
-          authH userIn = undefined {-do
-              res <- getUser $ userIn ^. _email
-              let validUser = do
-                      user <- res
-                      guard $ validatePassword (user ^. _pass . packedChars) (userIn ^. _pass . packedChars)
-                      Just user
-
-              case validUser of
-                  Just user -> liftIO (generateToken $ user ^?! _userId) >>= pure . AuthOk
-                  Nothing -> pure AuthWrongCredentials-}
-
-          indexPageH = liftIO $ readFile "static/html/index.html"
+server = testService :<|> courseService :<|> indexPageH :<|> coursePageH :<|> staticH
+    where indexPageH = liftIO $ readFile "static/html/index.html"
 
           coursePageH courseId = do
               course <- getCourse courseId

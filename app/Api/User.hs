@@ -19,16 +19,30 @@ import Database.HDBC
 
 import DB
 
-data User = User { __userId :: Int
-                 , __email :: String
-                 , __pass :: String
-                 }
-                 deriving Generic
+          regH userIn = undefined {-do
+              userExists <- has _Just <$> getUser (userIn ^. _email)
+              if userExists then do
+                  pure RegEmailInUse
+              else do
+                  user <- forMOf (_pass . packedChars) userIn $ \pass -> do
+                      hashed <- liftIO $ hashPasswordUsingPolicy fastBcryptHashingPolicy pass
+                      maybe (throwError err500) pure hashed
 
-instance FromJSON User
-instance ToJSON User
+                  -- userId <- createUser user
+                  let userId = 1509
 
-makeLenses ''User
+                  liftIO (generateToken userId) >>= pure . RegOk-}
+
+          authH userIn = undefined {-do
+              res <- getUser $ userIn ^. _email
+              let validUser = do
+                      user <- res
+                      guard $ validatePassword (user ^. _pass . packedChars) (userIn ^. _pass . packedChars)
+                      Just user
+
+              case validUser of
+                  Just user -> liftIO (generateToken $ user ^?! _userId) >>= pure . AuthOk
+                  Nothing -> pure AuthWrongCredentials-}
 
 data RegResp = RegEmailInUse
              | RegOk { regToken :: String }
@@ -54,31 +68,3 @@ generateToken userId = do
         token = encodeSigned (EncodeHMACSecret $ secret ^. packedChars) mempty claims
 
     pure $ token ^. unpacked
-
-getUser :: String -> DB (Maybe User)
-getUser email = do
-    c <- ask
-    row <- liftIO $ do
-        st <- prepare c "SELECT user_id, password FROM users WHERE email = ?"
-        execute st [toSql email]
-        fetchRow st
-
-    case row of
-        Just [userId, pass] -> pure $ Just $ User (fromSql userId) email (fromSql pass)
-        Nothing -> pure Nothing
-        _ -> throwError err500
-
-createUser :: User -> DB Int
-createUser user = do
-    c <- ask
-    row <- liftIO $ withTransaction c $ \c -> do
-        st <- prepare c "INSERT INTO users (email, password) VALUES (?, ?)"
-        execute st [toSql $ user ^. _email, toSql $ user ^. _pass]
-
-        st <- prepare c "SELECT userId FROM users WHERE email = ? AND password = ?"
-        execute st [toSql $ user ^. _email, toSql $ user ^. _pass]
-        fetchRow st
-
-    case row of
-        Just [userId] -> pure $ fromSql userId
-        _ -> throwError err500
