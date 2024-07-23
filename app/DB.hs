@@ -1,4 +1,4 @@
-module Database.Monad where
+module DB where
 
 import Control.Monad
 import Control.Monad.Reader

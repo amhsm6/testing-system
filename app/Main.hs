@@ -14,12 +14,9 @@ import Control.Concurrent.STM
 import Data.ByteString.Lens
 import Data.Text.Strict.Lens
 import Data.Aeson.Lens
-import qualified Data.Map as M
 import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generic)
-import System.Environment
 import Crypto.BCrypt
-import Web.JWT
 import Configuration.Dotenv
 import Servant
 import Servant.API.WebSocket
@@ -27,10 +24,10 @@ import Network.WebSockets
 import Network.Wai.Handler.Warp
 import Network.HTTP.Media ((//))
 
-import Tester
-import Database.Monad
-import Database.Course
-import Database.User
+import DB
+import Api.Test
+import Api.Course
+import Api.User
 
 data HTML
 
@@ -48,20 +45,6 @@ type Api = "api" :> "courses" :> Get '[JSON] [Course]
       :<|> Get '[HTML] String
       :<|> "course" :> Capture "courseId" Int :> Get '[HTML] String
       :<|> Raw
-
-data RegResp = RegEmailInUse
-             | RegOk { regToken :: String }
-             deriving Generic
-
-instance FromJSON RegResp
-instance ToJSON RegResp
-
-data AuthResp = AuthWrongCredentials
-              | AuthOk { authToken :: String }
-              deriving Generic
-
-instance FromJSON AuthResp
-instance ToJSON AuthResp
 
 api :: Proxy Api
 api = Proxy
@@ -113,29 +96,21 @@ server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> authH :<|> indexPageH
                       hashed <- liftIO $ hashPasswordUsingPolicy fastBcryptHashingPolicy pass
                       maybe (throwError err500) pure hashed
 
-                  -- userId <- createUser hashedUser
+                  -- userId <- createUser user
                   let userId = 1509
 
-                  secret <- liftIO $ getEnv "JWT_SECRET"
-                  let payload = [("userId", userId)] & traverse . _1 %~ view packed
-                                                     & traverse . _2 %~ review _JSON
-                      claims = mempty { exp = undefined
-                                      , unregisteredClaims = ClaimsMap $ M.fromList payload'
-                                      }
-                      token = encodeSigned (EncodeHMACSecret $ secret ^. packedChars) mempty claims
-
-                  pure $ RegOk $ token ^. unpacked
+                  liftIO (generateToken userId) >>= pure . RegOk
 
           authH userIn = do
-              mbUser <- getUser $ userIn ^. _email
-              do
-                  user <- mbUser
-                  guard $ validatePassword (user ^. _pass) (userIn ^. _pass)
-                  Just user
-              mbUser >>= \user -> if  then Just user else Nothing
-                  pure 
-              if has _Nothing user' then do
-                  pure AuthWrongCredentials
+              res <- getUser $ userIn ^. _email
+              let validUser = do
+                      user <- res
+                      guard $ validatePassword (user ^. _pass . packedChars) (userIn ^. _pass . packedChars)
+                      Just user
+
+              case validUser of
+                  Just user -> pure $ AuthOk $ undefined --generateToken $ user ^?! _userId
+                  Nothing -> pure AuthWrongCredentials
 
           indexPageH = liftIO $ readFile "static/html/index.html"
 

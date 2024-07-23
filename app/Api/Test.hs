@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Tester where
+module Api.Test where
 
 import Prelude hiding (log)
 import Control.Monad
@@ -20,7 +20,7 @@ import System.FilePath
 import System.Directory
 import System.Process
 
-import Database.Course
+import Api.Course
 
 type Tester = ReaderT (TQueue String) (ExceptT TestError IO)
 

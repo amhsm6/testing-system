@@ -14,10 +14,10 @@ executable testing-system
 
     main-is:          Main.hs
 
-    other-modules:    Tester
-                      Database.Monad
-                      Database.Course
-                      Database.User
+    other-modules:    DB
+                      Api.Test
+                      Api.Course
+                      Api.User
 
     build-depends:    base ^>=4.18.2.1
                     , mtl
