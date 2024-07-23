@@ -2,7 +2,6 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 module Main where
 
@@ -14,8 +13,6 @@ import Control.Concurrent.STM
 import Data.ByteString.Lens
 import Data.Text.Strict.Lens
 import Data.Aeson.Lens
-import Data.Aeson (FromJSON, ToJSON)
-import GHC.Generics (Generic)
 import Crypto.BCrypt
 import Configuration.Dotenv
 import Servant
@@ -25,9 +22,10 @@ import Network.Wai.Handler.Warp
 import Network.HTTP.Media ((//))
 
 import DB
+import DB.Course
+import DB.Problem
+import DB.Test
 import Api.Test
-import Api.Course
-import Api.User
 
 data HTML
 
@@ -37,11 +35,11 @@ instance Accept HTML where
 instance MimeRender HTML String where
     mimeRender _ = view packedChars
 
-type Api = "api" :> "courses" :> Get '[JSON] [Course]
-      :<|> "api" :> "course" :> Capture "courseId" Int :> Get '[JSON] (Maybe Course)
+type Api = "api" :> "courses" :> Get '[JSON] String
+      :<|> "api" :> "course" :> Capture "courseId" Int :> Get '[JSON] String
       :<|> "api" :> "submit" :> Capture "problemId" Int :> WebSocket
-      :<|> "api" :> "register" :> ReqBody '[JSON] User :> Post '[JSON] RegResp
-      :<|> "api" :> "auth" :> ReqBody '[JSON] User :> Post '[JSON] AuthResp
+      :<|> "api" :> "register" :> ReqBody '[JSON] String :> Post '[JSON] String
+      :<|> "api" :> "auth" :> ReqBody '[JSON] String :> Post '[JSON] String
       :<|> Get '[HTML] String
       :<|> "course" :> Capture "courseId" Int :> Get '[HTML] String
       :<|> Raw
@@ -51,13 +49,19 @@ api = Proxy
 
 server :: ServerT Api DB
 server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> authH :<|> indexPageH :<|> coursePageH :<|> staticH
-    where coursesH = getCourses
+    where coursesH = do
+              courses <- getCourses
 
-          courseH = getCourse
+              let serCourse course = "{}" & atKey ("id" ^. _Key) .~ Just (course ^. _courseId . re _JSON)
+                                          & atKey ("name" ^. _Key) .~ Just (course ^. _name . re _JSON)
+                                          & preview _Value
+              pure $ map serCourse courses ^. re _JSON
+
+          courseH = undefined --getCourse
 
           submitH problemId conn = do
-              validProblem <- checkProblem problemId
-              unless validProblem $ do
+              problem <- getProblem problemId
+              when (has _Nothing problem) $ do
                   liftIO $ sendClose conn $ "The problem does not exist" ^. packed
                   throwError err404
 
@@ -87,7 +91,7 @@ server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> authH :<|> indexPageH
 
                   sendTextData conn $ res ^. re _JSON . packed
 
-          regH userIn = do
+          regH userIn = undefined {-do
               userExists <- has _Just <$> getUser (userIn ^. _email)
               if userExists then do
                   pure RegEmailInUse
@@ -99,9 +103,9 @@ server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> authH :<|> indexPageH
                   -- userId <- createUser user
                   let userId = 1509
 
-                  liftIO (generateToken userId) >>= pure . RegOk
+                  liftIO (generateToken userId) >>= pure . RegOk-}
 
-          authH userIn = do
+          authH userIn = undefined {-do
               res <- getUser $ userIn ^. _email
               let validUser = do
                       user <- res
@@ -109,8 +113,8 @@ server = coursesH :<|> courseH :<|> submitH :<|> regH :<|> authH :<|> indexPageH
                       Just user
 
               case validUser of
-                  Just user -> pure $ AuthOk $ undefined --generateToken $ user ^?! _userId
-                  Nothing -> pure AuthWrongCredentials
+                  Just user -> liftIO (generateToken $ user ^?! _userId) >>= pure . AuthOk
+                  Nothing -> pure AuthWrongCredentials-}
 
           indexPageH = liftIO $ readFile "static/html/index.html"
 

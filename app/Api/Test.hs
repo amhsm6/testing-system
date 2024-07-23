@@ -20,15 +20,15 @@ import System.FilePath
 import System.Directory
 import System.Process
 
-import Api.Course
+import DB.Test
 
 type Tester = ReaderT (TQueue String) (ExceptT TestError IO)
 
 data TestError = TestUnknownError
                | TestUnsupportedLanguageError
                | TestCompileError
-               | TestWrongAnswerError Test
-               | TestRuntimeError Test
+               | TestWrongAnswerError --Test
+               | TestRuntimeError --Test
                deriving Generic
 
 instance FromJSON TestError
@@ -128,9 +128,9 @@ test input langJSON tests = do
 
                         unless correct $ do
                             log "Wrong answer"
-                            throwError $ TestWrongAnswerError t
+                            throwError $ TestWrongAnswerError --t
 
                         log "Ok"
                     ExitFailure code -> do
                         log $ "Runtime error. Program finished with exit code " ++ show code ++ "."
-                        throwError $ TestRuntimeError t
+                        throwError $ TestRuntimeError --t

@@ -23,10 +23,12 @@ data User = User { __userId :: Int
                  , __email :: String
                  , __pass :: String
                  }
+                 deriving Generic
+
+instance FromJSON User
+instance ToJSON User
 
 makeLenses ''User
-
-type CreateUser = String
 
 data RegResp = RegEmailInUse
              | RegOk { regToken :: String }
@@ -50,6 +52,7 @@ generateToken userId = do
         claims = mempty { unregisteredClaims = ClaimsMap $ M.fromList payload
                         }
         token = encodeSigned (EncodeHMACSecret $ secret ^. packedChars) mempty claims
+
     pure $ token ^. unpacked
 
 getUser :: String -> DB (Maybe User)
@@ -65,8 +68,8 @@ getUser email = do
         Nothing -> pure Nothing
         _ -> throwError err500
 
-createUser :: CreateUser -> DB Int
-createUser dat = do
+createUser :: User -> DB Int
+createUser user = do
     c <- ask
     row <- liftIO $ withTransaction c $ \c -> do
         st <- prepare c "INSERT INTO users (email, password) VALUES (?, ?)"
