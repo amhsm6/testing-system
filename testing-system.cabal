@@ -16,6 +16,9 @@ executable testing-system
 
     other-modules:    Api.Testing
                       Api.Testing.Core
+                      Api.Testing.Response
+                      Api.Testing.VInput
+                      Api.Testing.VResponse
                       Api.Course
                       Api.Course.VCourses
                       Api.Course.VCourse

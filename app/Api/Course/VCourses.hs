@@ -1,10 +1,9 @@
 {-# LANGUAGE DeriveGeneric #-}
 
 module Api.Course.VCourses
-    ( VCourses, vcourses
+    ( VCourses, _VCourses
     ) where
 
-import Control.Monad
 import Control.Lens
 import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generic)
@@ -25,7 +24,7 @@ instance ToJSON VCourse
 instance FromJSON VCourses
 instance ToJSON VCourses
 
-vcourses :: Getter [Course] VCourses
-vcourses = lens mapCourses const
+_VCourses :: Prism' VCourses [Course]
+_VCourses = prism mapCourses Left
     where mapCourses = VCourses . map mapCourse
           mapCourse course = VCourse (course ^. _courseId) (course ^. _name)

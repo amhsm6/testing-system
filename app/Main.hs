@@ -5,7 +5,6 @@
 
 module Main where
 
-import Control.Monad
 import Control.Monad.Trans
 import Control.Lens
 import Data.ByteString.Lens

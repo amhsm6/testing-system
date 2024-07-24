@@ -1,6 +1,7 @@
-module DB where
+module DB
+    ( DB, runDB
+    ) where
 
-import Control.Monad
 import Control.Monad.Reader
 import Control.Lens
 import System.Environment

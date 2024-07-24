@@ -3,7 +3,6 @@
 
 module Api.Course where
 
-import Control.Monad
 import Control.Lens
 import Servant
 
@@ -17,6 +16,6 @@ type CourseApi = "api" :> "courses" :> Get '[JSON] VCourses
 
 courseService :: ServerT CourseApi DB
 courseService = coursesH :<|> courseH
-    where coursesH = view vcourses <$> getCourses
+    where coursesH = review _VCourses <$> getCourses
 
-          courseH courseId = view vcourse <$> getCourse courseId
+          courseH courseId = review _VCourse <$> getCourse courseId

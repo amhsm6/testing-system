@@ -2,7 +2,6 @@
 
 module DB.User where
 
-import Control.Monad
 import Control.Monad.Reader
 import Control.Lens
 import Servant

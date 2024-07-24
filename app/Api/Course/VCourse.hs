@@ -1,10 +1,9 @@
 {-# LANGUAGE DeriveGeneric #-}
 
 module Api.Course.VCourse
-    ( VCourse, vcourse
+    ( VCourse, _VCourse
     ) where
 
-import Control.Monad
 import Control.Lens
 import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generic)
@@ -12,10 +11,10 @@ import GHC.Generics (Generic)
 import DB.Course
 import DB.Problem
 
-data VCourse = VCourse (Maybe VCourse_)
+data VCourse = VCourse (Maybe VCourse')
     deriving Generic
 
-data VCourse_ = VCourse_ { name :: String
+data VCourse' = VCourse' { name :: String
                          , problems :: [VProblem]
                          }
                          deriving Generic
@@ -28,13 +27,13 @@ data VProblem = VProblem { id :: Int
 instance FromJSON VProblem
 instance ToJSON VProblem
 
-instance FromJSON VCourse_
-instance ToJSON VCourse_
+instance FromJSON VCourse'
+instance ToJSON VCourse'
 
 instance FromJSON VCourse
 instance ToJSON VCourse
 
-vcourse :: Getter (Maybe Course) VCourse
-vcourse = lens (VCourse . fmap mapCourse) const
-    where mapCourse course = VCourse_ (course ^. _name) (course ^.. _problems . traverse . to mapProblem)
+_VCourse :: Prism' VCourse (Maybe Course)
+_VCourse = prism (VCourse . fmap mapCourse) Left
+    where mapCourse course = VCourse' (course ^. _name) (course ^.. _problems . traverse . to mapProblem)
           mapProblem problem = VProblem (problem ^. _problemId) (problem ^. _description)
