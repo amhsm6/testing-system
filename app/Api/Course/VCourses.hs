@@ -10,7 +10,7 @@ import GHC.Generics (Generic)
 
 import DB.Course
 
-data VCourses = VCourses { courses :: [VCourse] }
+data VCourses = VCourses [VCourse]
     deriving Generic
 
 data VCourse = VCourse { id :: Int
@@ -25,6 +25,5 @@ instance FromJSON VCourses
 instance ToJSON VCourses
 
 _VCourses :: Prism' VCourses [Course]
-_VCourses = prism mapCourses Left
-    where mapCourses = VCourses . map mapCourse
-          mapCourse course = VCourse (course ^. _courseId) (course ^. _name)
+_VCourses = prism (VCourses . map mapCourse) Left
+    where mapCourse course = VCourse (course ^. _courseId) (course ^. _name)

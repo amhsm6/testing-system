@@ -26,7 +26,7 @@ onload = async () => {
     const courseName = document.querySelector("#course-name");
     courseName.insertAdjacentHTML(
         "beforeend",
-        `<h1>${course.__name}</h1>`
+        `<h1>${course.name}</h1>`
     );
 
     const navpanel = document.querySelector("#problem-selector-navpanel");
@@ -36,19 +36,19 @@ onload = async () => {
     let lastSelectedProblem = 0;
 
     selectProblem = i => {
-        currSelectedProblemId = course.__problems[i].__problemId;
+        currSelectedProblemId = course.problems[i].id;
 
         navpanel.children[lastSelectedProblem].classList.remove("navbox-active");
         navpanel.children[i].classList.add("navbox-active");
 
-        description.innerHTML = course.__problems[i].__description;
+        description.innerHTML = course.problems[i].description;
         uploadInput.value = null;
         languageSelector.value = "";
 
         lastSelectedProblem = i;
     };
 
-    for (let i = 0; i < course.__problems.length; i++) {
+    for (let i = 0; i < course.problems.length; i++) {
         navpanel.insertAdjacentHTML(
             "beforeend",
             `
@@ -87,8 +87,10 @@ onload = async () => {
             if (languageSelector.value === "") { return; }
 
             const content = await uploadInput.files[0].text();
-            ws.send(content);
-            ws.send(JSON.stringify(languageSelector.value));
+            ws.send(JSON.stringify({
+                source: content,
+                lang: languageSelector.value
+            }));
 
             uploadInput.value = null;
             languageSelector.value = "";
@@ -103,24 +105,26 @@ onload = async () => {
         ws.onmessage = msg => {
             const data = JSON.parse(msg.data);
 
-            if (data["Right"]) {
-                problemStatus.innerHTML = "<span>PASSED</span>";
-                problemStatus.style.backgroundColor = "green";
-                closeButton.style.display = "";
-            } else if (data["Left"]) {
+            if (data.ok) {
+                if (data.logs) {
+                    uploadLog.replaceChildren();
+                    data.logs.forEach(log => {
+                        uploadLog.insertAdjacentHTML(
+                            "beforeend",
+                            `<span>${log}</span>`
+                        );
+                    });
+                } else {
+                    problemStatus.innerHTML = "<span>PASSED</span>";
+                    problemStatus.style.backgroundColor = "green";
+                    closeButton.style.display = "";
+                }
+            } else {
                 problemStatus.innerHTML = "<span>FAILED</span>";
                 problemStatus.style.backgroundColor = "red";
                 closeButton.style.display = "";
 
-                console.log(data["Left"]);
-            } else {
-                uploadLog.replaceChildren();
-                data.forEach(log => {
-                    uploadLog.insertAdjacentHTML(
-                        "beforeend",
-                        `<span>${log}</span>`
-                    );
-                });
+                console.log(data);
             }
         };
     };
