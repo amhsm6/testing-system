@@ -14,10 +14,11 @@ executable testing-system
 
     main-is:          Main.hs
 
-    other-modules:    Api.Test
+    other-modules:    Api.Testing
+                      Api.Testing.Core
                       Api.Course
-                      Api.Course.CoursesResp
-                      Api.Course.CourseResp
+                      Api.Course.VCourses
+                      Api.Course.VCourse
                       DB
                       DB.Course
                       DB.Problem

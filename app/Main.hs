@@ -14,7 +14,7 @@ import Servant
 import Network.Wai.Handler.Warp
 import Network.HTTP.Media ((//))
 
-import Api.Test
+import Api.Testing
 import Api.Course
 import DB
 import DB.Course
