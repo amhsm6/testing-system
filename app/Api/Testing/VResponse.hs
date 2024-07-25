@@ -1,5 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 module Api.Testing.VResponse
@@ -20,18 +18,10 @@ data VResponse = VResponse { ok :: Bool
                            }
                            deriving Generic
 
-data VResponseError = VResponseError { problemDoesNotExist :: Maybe ()
-                                     , unsupportedLanguage :: Maybe ()
-                                     , testingError :: Maybe VTestError
+data VResponseError = VResponseError { errorCode :: Int
+                                     , errorData :: Maybe VTest
                                      }
                                      deriving Generic
-
-data VTestError = VTestError { unknownError :: Maybe ()
-                             , compileError :: Maybe ()
-                             , wrongAnswer :: Maybe VTest
-                             , runtimeError :: Maybe VTest
-                             }
-                             deriving Generic
 
 data VTest = VTest { input :: String
                    , output :: String
@@ -40,9 +30,6 @@ data VTest = VTest { input :: String
 
 instance FromJSON VTest
 instance ToJSON VTest
-
-instance FromJSON VTestError
-instance ToJSON VTestError
 
 instance FromJSON VResponseError
 instance ToJSON VResponseError
@@ -56,14 +43,14 @@ _VResponse = prism mapResponse Left
           mapResponse (ResponseLogs logs) = VResponse True (Just logs) Nothing
           mapResponse x = VResponse False Nothing (Just $ mapRespError x)
 
-          mapRespError ProblemDoesNotExist = VResponseError (Just ()) Nothing Nothing
-          mapRespError UnsupportedLanguage = VResponseError Nothing (Just ()) Nothing
-          mapRespError (TestingError e) = VResponseError Nothing Nothing (Just $ mapTestError e)
+          mapRespError ProblemDoesNotExist = VResponseError 1 Nothing
+          mapRespError UnsupportedLanguage = VResponseError 2 Nothing
+          mapRespError (TestingError e) = mapTestingError e
           mapRespError _ = undefined
 
-          mapTestError TestUnknownError = VTestError (Just ()) Nothing Nothing Nothing
-          mapTestError TestCompileError = VTestError Nothing (Just ()) Nothing Nothing
-          mapTestError (TestWrongAnswerError t) = VTestError Nothing Nothing (Just $ mapTest t) Nothing
-          mapTestError (TestRuntimeError t) = VTestError Nothing Nothing Nothing (Just $ mapTest t)
+          mapTestingError TestUnknownError = VResponseError 3 Nothing
+          mapTestingError TestCompileError = VResponseError 4 Nothing
+          mapTestingError (TestWrongAnswerError t) = VResponseError 5 (Just $ mapTest t)
+          mapTestingError (TestRuntimeError t) = VResponseError 6 (Just $ mapTest t)
 
           mapTest t = VTest (t ^. _input) (t ^. _output)
