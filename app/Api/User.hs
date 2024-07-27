@@ -1,62 +1,26 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Api.User where
 
 import Control.Monad
 import Control.Monad.Reader
 import Control.Lens
-import Data.ByteString.Lens
 import Data.Text.Lens
-import Data.Aeson.Lens
 import qualified Data.Map as M
-import Data.Aeson (FromJSON, ToJSON)
-import GHC.Generics (Generic)
 import System.Environment
 import Web.JWT
 import Servant
 import Database.HDBC
 
+import Api.User.VUser
+import Api.User.VRespReg
+import Api.User.VRespLogin
 import DB
+import DB.User
 
-          regH userIn = undefined {-do
-              userExists <- has _Just <$> getUser (userIn ^. _email)
-              if userExists then do
-                  pure RegEmailInUse
-              else do
-                  user <- forMOf (_pass . packedChars) userIn $ \pass -> do
-                      hashed <- liftIO $ hashPasswordUsingPolicy fastBcryptHashingPolicy pass
-                      maybe (throwError err500) pure hashed
-
-                  -- userId <- createUser user
-                  let userId = 1509
-
-                  liftIO (generateToken userId) >>= pure . RegOk-}
-
-          authH userIn = undefined {-do
-              res <- getUser $ userIn ^. _email
-              let validUser = do
-                      user <- res
-                      guard $ validatePassword (user ^. _pass . packedChars) (userIn ^. _pass . packedChars)
-                      Just user
-
-              case validUser of
-                  Just user -> liftIO (generateToken $ user ^?! _userId) >>= pure . AuthOk
-                  Nothing -> pure AuthWrongCredentials-}
-
-data RegResp = RegEmailInUse
-             | RegOk { regToken :: String }
-             deriving Generic
-
-instance FromJSON RegResp
-instance ToJSON RegResp
-
-data AuthResp = AuthWrongCredentials
-              | AuthOk { authToken :: String }
-              deriving Generic
-
-instance FromJSON AuthResp
-instance ToJSON AuthResp
+type UserApi = "register" :> ReqBody '[JSON] VUser :> POST '[JSON] VRespReg
+          :<|> "login" :> ReqBody '[JSON] VUser :> POST '[JSON] VRespLogin
 
 generateToken :: Int -> IO String
 generateToken userId = do
@@ -68,3 +32,24 @@ generateToken userId = do
         token = encodeSigned (EncodeHMACSecret $ secret ^. packedChars) mempty claims
 
     pure $ token ^. unpacked
+
+userService :: ServerT UserApi DB
+userService = regH :<|> loginH
+    where regH body = do
+              (email, pass) <- maybe (throwError err400) pure $ body ^. pre _VUser
+
+              review _VRespReg <$> do
+                  userExists <- has _Just <$> getUser email
+                  if userExists then do
+                      pure RegEmailInUse
+                  else do
+                      res <- liftIO $ hashPasswordUsingPolicy fastBcryptHashingPolicy $ pass ^. packedChars
+                      hashed <- maybe (throwError err500) (pure . view unpackedChars) res
+
+                      -- userId <- createUser email hashed
+                      let userId = 1509
+
+                      liftIO (generateToken userId) >>= pure . RegOk
+
+          loginH userIn = do
+              (email, pass) <- maybe (throwError err400) pure $ body ^. pre _VUser
