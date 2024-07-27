@@ -165,6 +165,32 @@ a {
     font-size: 1.3em;
 }
 
+#error-description {
+    margin-left: 20px;
+}
+
+#error-description a {
+    display: block;
+    margin-top: 20px;
+    padding-bottom: 5px;
+    font-size: 1.1em;
+    color: black;
+    transition: all 0.5s;
+}
+
+#error-description .input {
+    border-bottom: 2px solid green;
+}
+
+#error-description .output {
+    border-bottom: 2px solid red;
+}
+
+#error-description a:hover {
+    color: gray;
+    cursor: default;
+}
+
 #close-results {
     align-self: end;
     margin-top: 20px;

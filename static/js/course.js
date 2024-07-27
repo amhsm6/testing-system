@@ -5,6 +5,12 @@ const knownExtensions = {
     "py": "Python"
 };
 
+const errorString = {
+    1: "Error: Such problem does not exist",
+    2: "Error: Testing programs in that language is not supported",
+    3: "Error: Something went wrong during testing"
+};
+
 onload = async () => {
     const uploadInput = document.querySelector("#upload-file-input");
     uploadInput.value = null;
@@ -18,7 +24,7 @@ onload = async () => {
         const filename = uploadInput.files[0].name;
         const ext = filename.split('.').pop();
         languageSelector.value = knownExtensions[ext] || "";
-    }
+    };
 
     const resp = await fetch("/api" + location.pathname);
     const course = await resp.json();
@@ -36,6 +42,8 @@ onload = async () => {
     let lastSelectedProblem = 0;
 
     selectProblem = i => {
+        if (!course.problems[i]) { return; }
+
         currSelectedProblemId = course.problems[i].id;
 
         navpanel.children[lastSelectedProblem].classList.remove("navbox-active");
@@ -64,18 +72,39 @@ onload = async () => {
     const uploadResults = document.querySelector("#upload-results");
     const uploadLog = document.querySelector("#upload-log");
     const problemStatus = document.querySelector("#problem-status");
+    const errorDescription = document.querySelector("#error-description");
     const closeButton = document.querySelector("#close-results");
+
+    const clearUploadResults = () => {
+        uploadResults.style.display = "none";
+        uploadLog.replaceChildren();
+        errorDescription.replaceChildren();
+    };
 
     onkeydown = e => {
         if (e.key == "Escape") {
-            uploadResults.style.display = "none";
-            uploadLog.replaceChildren();
+            clearUploadResults();
         }
-    }
+    };
 
     closeButton.onclick = () => {
-        uploadResults.style.display = "none";
-        uploadLog.replaceChildren();
+        clearUploadResults();
+    };
+
+    const openText = text => {
+        const wnd = open();
+        wnd.document.write(text)
+        return wnd;
+    };
+
+    displayInput = data => {
+        const wnd = openText(data);
+        wnd.document.title = "Failed Test Input";
+    };
+
+    displayOutput = data => {
+        const wnd = openText(data);
+        wnd.document.title = "Expected Output";
     };
 
     const uploadButton = document.querySelector("#upload-solution");
@@ -124,7 +153,20 @@ onload = async () => {
                 problemStatus.style.backgroundColor = "red";
                 closeButton.style.display = "";
 
-                console.log(data);
+                if (errorString[data.err.errorCode]) {
+                    errorDescription.insertAdjacentHTML(
+                        "beforeend",
+                        `<span>${errorString[data.err.errorCode]}</span>`
+                    );
+                } else if (data.err.errorCode == 5 || data.err.errorCode == 6) {
+                    errorDescription.insertAdjacentHTML(
+                        "beforeend",
+                        `
+                        <a class="input" onclick="displayInput('${data.err.errorData.input}')">Failed Test Input</a>
+                        <a class="output" onclick="displayOutput('${data.err.errorData.output}')">Expected Output</a>
+                        `
+                    );
+                }
             }
         };
     };
