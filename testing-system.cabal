@@ -22,6 +22,13 @@ executable testing-system
                       Api.Course
                       Api.Course.VCourses
                       Api.Course.VCourse
+                      Api.User
+                      Api.User.RespReg
+                      Api.User.RespLogin
+                      Api.User.VUser
+                      Api.User.VRespReg
+                      Api.User.VRespLogin
+                      Api.Static
                       DB
                       DB.Course
                       DB.Problem

@@ -36,7 +36,7 @@ createUser email pass = do
         st <- prepare c "INSERT INTO users (email, password) VALUES (?, ?)"
         execute st [toSql email, toSql pass]
 
-        st <- prepare c "SELECT userId FROM users WHERE email = ? AND password = ?"
+        st <- prepare c "SELECT user_id FROM users WHERE email = ? AND password = ?"
         execute st [toSql email, toSql pass]
         fetchRow st
 
