@@ -25,48 +25,43 @@ import DB.Test
 
 type TestApi = "api" :> "submit" :> Capture "problemId" Int :> WebSocket
 
-type Action = ExceptT Response DB
-
-runAction :: Action Response -> DB Response
-runAction m = either id id <$> runExceptT m
-
-submit :: Int -> IO (Maybe (String, Language)) -> (Response -> IO ()) -> Action Response
-submit problemId recv resp = do
-    problem <- lift $ getProblem problemId
-    when (has _Nothing problem) $ do
-        throwError ProblemDoesNotExist
-
-    (src, lang) <- liftIO recv >>= maybe (throwError UnsupportedLanguage) pure
-    tests <- lift $ getTests problemId
-
-    liftIO $ do
-        q <- atomically newTQueue
-        tlogs <- atomically $ newTVar []
-
-        let sendLogs = forever $ do
-                logs <- atomically $ do
-                    log <- readTQueue q
-                    modifyTVar tlogs (++[log])
-
-                    readTVar tlogs
-                    
-                resp $ ResponseLogs logs
-                threadDelay 10
-        logThread <- forkIO sendLogs
-
-        res <- runTester q $ test src lang tests
-
-        atomically $ isEmptyTQueue q >>= check
-        killThread logThread
-
-        case res of
-            Right () -> pure ResponsePassed
-            Left e -> pure $ TestingError e
-
 testService :: ServerT TestApi DB
 testService = submitH
     where submitH problemId conn = do
-              let recv = preview (_JSON . _VInput) <$> (receiveData conn :: IO T.Text)
+              let recv = receiveData conn :: IO T.Text
                   resp x = sendTextData conn (x ^. re (_JSON . _VResponse) :: T.Text)
 
-              runAction (submit problemId recv resp) >>= liftIO . resp
+              runExceptT >=> liftIO . resp . either id id $ do
+                  problem <- lift $ getProblem problemId
+                  when (has _Nothing problem) $ do
+                      throwError ProblemDoesNotExist
+
+                  req <- liftIO recv
+                  json <- maybe (lift $ throwError err400) pure $ req ^. pre _JSON
+                  (src, lang) <- maybe (throwError UnsupportedLanguage) pure $ json ^. pre _VInput
+
+                  tests <- lift $ getTests problemId
+
+                  liftIO $ do
+                      q <- atomically newTQueue
+                      tlogs <- atomically $ newTVar []
+
+                      let sendLogs = forever $ do
+                              logs <- atomically $ do
+                                  log <- readTQueue q
+                                  modifyTVar tlogs (++[log])
+
+                                  readTVar tlogs
+                                  
+                              resp $ ResponseLogs logs
+                              threadDelay 10
+                      logThread <- forkIO sendLogs
+
+                      res <- runTester q $ test src lang tests
+
+                      atomically $ isEmptyTQueue q >>= check
+                      killThread logThread
+
+                      case res of
+                          Right () -> pure ResponsePassed
+                          Left e -> pure $ TestingError e

@@ -5,6 +5,7 @@ module Api.User where
 
 import Control.Monad
 import Control.Monad.Reader
+import Control.Monad.Except
 import Control.Lens
 import Data.ByteString.Lens
 import Data.Text.Lens
@@ -40,28 +41,27 @@ generateToken userId = do
 userService :: ServerT UserApi DB
 userService = regH :<|> loginH
     where regH body = do
-              let (email, pass) = body ^. _VUser
+              runExceptT >=> pure . review _VRespReg . either id id $ do
+                  let (email, pass) = body ^. _VUser
 
-              userExists <- has _Just <$> getUser email
-              if userExists then do
-                  pure $ RegEmailInUse ^. re _VRespReg
-              else do
+                  lift (getUser email) >>= \x -> when (has _Just x) $ throwError RegEmailInUse
+
                   res <- liftIO $ hashPasswordUsingPolicy fastBcryptHashingPolicy $ pass ^. packedChars
-                  hashed <- maybe (throwError err500) (pure . view unpackedChars) res
+                  hashed <- maybe (lift $ throwError err500) (pure . view unpackedChars) res
 
-                  user <- createUser email hashed
+                  user <- lift $ createUser email hashed
+
                   token <- liftIO $ generateToken $ user ^. _userId
-
-                  pure $ RegOk token ^. re _VRespReg
+                  pure $ RegOk token
 
           loginH body = do
-              let (email, pass) = body ^. _VUser
-                  validateFor user = validatePassword (user ^. _pass . packedChars) (pass ^. packedChars)
+              runExceptT >=> pure . review _VRespLogin . either id id $ do
+                  let (email, pass) = body ^. _VUser
 
-              user <- getUser email
-              let validUser = user >>= \x -> guard (validateFor x) >> pure x
-              case validUser of
-                  Just user -> do
-                      token <- liftIO $ generateToken $ user ^. _userId
-                      pure $ LoginOk token ^. re _VRespLogin
-                  Nothing -> pure $ LoginWrongCredentials ^. re _VRespLogin
+                  user <- lift (getUser email) >>= maybe (throwError LoginWrongCredentials) pure
+
+                  unless (validatePassword (user ^. _pass . packedChars) (pass ^. packedChars)) $ do
+                      throwError LoginWrongCredentials
+
+                  token <- liftIO $ generateToken $ user ^. _userId
+                  pure $ LoginOk token
