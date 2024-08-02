@@ -1,0 +1,61 @@
+cabal-version:   3.0
+name:            testing-system
+version:         0.1.0.0
+license:         NONE
+author:          amhsm6@gmail.com
+maintainer:      amhsm6
+build-type:      Simple
+
+common warnings
+    ghc-options: -threaded -Wall
+
+executable testing-system
+    import:           warnings
+
+    main-is:          Main.hs
+
+    other-modules:    Api.Testing
+                      Api.Testing.Core
+                      Api.Testing.Response
+                      Api.Testing.VInput
+                      Api.Testing.VResponse
+                      Api.Course
+                      Api.Course.VCourses
+                      Api.Course.VCourse
+                      Api.User
+                      Api.User.RespReg
+                      Api.User.RespLogin
+                      Api.User.VUser
+                      Api.User.VRespReg
+                      Api.User.VRespLogin
+                      DB
+                      DB.Course
+                      DB.Problem
+                      DB.Test
+                      DB.User
+
+    build-depends:    base ^>=4.18.2.1
+                    , mtl
+                    , lens
+                    , lens-aeson
+                    , stm
+                    , text
+                    , time
+                    , containers
+                    , aeson
+                    , filepath
+                    , directory
+                    , process
+                    , bcrypt
+                    , jwt
+                    , dotenv
+                    , servant-server
+                    , servant-websockets
+                    , websockets
+                    , warp
+                    , HDBC
+                    , HDBC-postgresql
+
+    hs-source-dirs:   app
+
+    default-language: Haskell2010
