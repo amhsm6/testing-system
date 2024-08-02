@@ -1,4 +1,4 @@
-import { jwtDecode } from "https://unpkg.com/jwt-decode/build/esm"
+import { jwtDecode } from "jwt-decode"
 
 onload = async () => {
     const link = document.querySelector("#header a[href = '/']");
