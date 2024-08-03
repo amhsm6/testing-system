@@ -29,14 +29,14 @@ a {
     cursor: default;
 }
 
-#content {
+#content-index {
     display: flex;
-    flex-direction: column;
     align-items: center;
 }
 
 #courses {
     width: 600px;
+    margin-left: auto;
     padding-top: 20px;
 }
 
@@ -54,6 +54,155 @@ a {
 .course a:hover {
     color: gray;
     cursor: default;
+}
+
+#user-info {
+    width: 350px;
+    margin-right: 150px;
+    display: flex;
+    flex-direction: column;
+}
+
+#user-info > span {
+    margin-top: 20px;
+    margin-bottom: 20px;
+    text-align: center;
+    font-size: 1.5em;
+}
+
+#user-info-card {
+    padding: 10px;
+    border: 3px solid black;
+    border-radius: 7px;
+    background-color: white;
+}
+
+#user-logged-in {
+    display: flex;
+    flex-direction: column;
+}
+
+#user-email {
+    margin-bottom: 30px;
+}
+
+#user-summary span {
+    display: block;
+}
+
+#logout {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+#logout-btn {
+    float: right;
+    padding: 3px 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.5em;
+    background-color: rgb(250, 0, 0);
+    transition: all 0.5s;
+}
+
+#logout-btn:hover {
+    background-color: #99ff22;
+}
+
+#logout-btn:active {
+    transform: translate(0, 5px);
+    transition: all 0.1s;
+}
+
+#user-not-logged-in {
+    display: flex;
+    flex-direction: column;
+}
+
+#user-not-logged-in span {
+    margin-bottom: 20px;
+    text-align: center;
+    font-size: 1.1em;
+}
+
+#user-data {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#user-data input {
+    width: 90%;
+    padding: 3px;
+    border: 2px solid black;
+    border-radius: 5px;
+}
+
+#user-data input:focus {
+    outline: none;
+}
+
+#user-data input:valid {
+    border: 2px solid green!important;
+}
+
+#user-data-email {
+    margin-bottom: 10px;
+}
+
+#login-buttons {
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-around;
+}
+
+#login-btn {
+    padding: 3px 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.5em;
+    color: white;
+    background-color: black;
+    transition: all 0.5s;
+}
+
+#login-btn:hover {
+    border: 3px solid black;
+    color: black;
+    background-color: white;
+}
+
+#login-btn:active {
+    transform: translate(0, 5px);
+    transition: all 0.1s;
+}
+
+#reg-btn {
+    padding: 3px 10px;
+    border: 3px solid black;
+    border-radius: 8px;
+    font-size: 1.5em;
+    color: black;
+    background-color: white;
+    transition: all 0.5s;
+}
+
+#reg-btn:hover {
+    color: white;
+    background-color: black;
+}
+
+#reg-btn:active {
+    transform: translate(0, 5px);
+    transition: all 0.1s;
+}
+
+#content-course {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 #problem-selector {

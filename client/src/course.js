@@ -166,6 +166,8 @@ onload = async () => {
                         <a class="output" onclick="displayOutput('${data.err.errorData.output}')">Expected Output</a>
                         `
                     );
+                } else {
+                    console.error("error: unknown error code");
                 }
             }
         };

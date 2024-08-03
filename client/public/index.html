@@ -9,8 +9,36 @@
     <div id="header">
         <a href="/">Courses</a>
     </div>
-    <div id="content">
+    <div id="content-index">
         <div id="courses"></div>
+
+        <div id="user-info">
+            <span><strong>User Info</strong></span>
+            <div id="user-info-card">
+                <div id="user-logged-in" style="display: none">
+                    <span id="user-email">Email: alexandra.yanikova@gmail.com</span>
+                    <div id="user-summary">
+                        <span id="solved-problems">Solved Problems: 1509</span>
+                        <span id="attempted-problems">Attempted Problems: 1509</span>
+                    </div>
+                    <div id="logout">
+                        <button id="logout-btn">Logout</button>
+                    </div>
+                </div>
+
+                <div id="user-not-logged-in">
+                    <span>You haven't logged in to the system</span>
+                    <form id="user-data">
+                        <input id="user-data-email" type="email" placeholder="Enter Email" name="email" required />
+                        <input id="user-data-pass" type="password" placeholder="Enter Password" name="pass" required />
+                    </form>
+                    <div id="login-buttons">
+                        <button id="login-btn">Login</button>
+                        <button id="reg-btn">Register</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>
