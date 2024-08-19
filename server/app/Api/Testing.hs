@@ -4,13 +4,13 @@
 module Api.Testing where
 
 import Control.Monad
-import Control.Monad.Except
+import Control.Monad.Cont
 import Control.Monad.Trans
 import Control.Lens
 import Control.Concurrent
 import Control.Concurrent.STM
-import Data.Aeson.Lens
 import qualified Data.Text as T
+import Data.Aeson.Lens
 import Servant
 import Servant.API.WebSocket
 import Network.WebSockets hiding (Response)
@@ -31,39 +31,40 @@ testService = submitH
               let recv = receiveData conn :: IO T.Text
                   resp x = sendTextData conn (x ^. re (_JSON . _VResponse) :: T.Text)
 
-              runExceptT >=> liftIO . resp . either id id $ do
-                  problem <- lift $ getProblem problemId
-                  when (has _Nothing problem) $ do
-                      throwError ProblemDoesNotExist
+              flip runContT (liftIO . resp) $ do
+                  callCC $ \exit -> do
+                      problem <- lift $ getProblem problemId
+                      when (has _Nothing problem) $ do
+                          void $ exit ProblemDoesNotExist
 
-                  req <- liftIO recv
-                  json <- maybe (lift $ throwError err400) pure $ req ^. pre _JSON
-                  (src, lang) <- maybe (throwError UnsupportedLanguage) pure $ json ^. pre _VInput
+                      req <- liftIO recv
+                      json <- maybe (lift $ throwError err400) pure $ req ^. pre _JSON
+                      (src, lang) <- maybe (exit UnsupportedLanguage) pure $ json ^. pre _VInput
 
-                  tests <- lift $ getTests problemId
+                      tests <- lift $ getTests problemId
 
-                  liftIO $ do
-                      q <- atomically newTQueue
-                      tlogs <- atomically $ newTVar []
-                      tidle <- atomically $ newTVar True
+                      liftIO $ do
+                          q     <- atomically newTQueue
+                          tlogs <- atomically $ newTVar []
+                          tidle <- atomically $ newTVar True
 
-                      let sendLogs = forever $ do
-                              atomically $ do
-                                  log <- readTQueue q
-                                  modifyTVar tlogs (++[log])
+                          sendLogs <- forkIO $ do
+                              forever $ do
+                                  atomically $ do
+                                      log <- readTQueue q
+                                      modifyTVar tlogs (++[log])
 
-                              atomically $ writeTVar tidle False
-                              atomically (readTVar tlogs) >>= resp . ResponseLogs
-                              atomically $ writeTVar tidle True
-                      logThread <- forkIO sendLogs
+                                  atomically $ writeTVar tidle False
+                                  atomically (readTVar tlogs) >>= resp . ResponseLogs
+                                  atomically $ writeTVar tidle True
 
-                      res <- runTester q $ test src lang tests
+                          res <- runTester q $ test src lang tests
 
-                      atomically $ do
-                          isEmptyTQueue q >>= check
-                          readTVar tidle >>= check
-                      killThread logThread
+                          atomically $ do
+                              isEmptyTQueue q >>= check
+                              readTVar tidle >>= check
+                          killThread sendLogs
 
-                      case res of
-                          Right () -> pure ResponsePassed
-                          Left e -> pure $ TestingError e
+                          case res of
+                              Right () -> pure ResponsePassed
+                              Left e   -> pure $ TestingError e

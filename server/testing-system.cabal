@@ -37,12 +37,12 @@ executable testing-system
     build-depends:    base ^>=4.18.2.1
                     , mtl
                     , lens
-                    , lens-aeson
                     , stm
                     , text
                     , time
                     , containers
                     , aeson
+                    , lens-aeson
                     , filepath
                     , directory
                     , process
