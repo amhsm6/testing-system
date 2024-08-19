@@ -6,12 +6,13 @@ import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Lens
 import Control.Concurrent.STM
-import Data.Text.Lens
 import qualified Data.Text as T
+import Data.Text.Lens
 import Data.Time.Clock.POSIX
 import System.IO
 import System.Exit
 import System.FilePath
+import System.FilePath.Lens
 import System.Directory
 import System.Process
 
@@ -33,9 +34,8 @@ log x = ask >>= \q -> liftIO $ atomically $ writeTQueue q x
 finally :: Tester a -> Tester b -> Tester b
 finally mfin m = do
     x <- tryError m
-    case x of
-        Left e -> mfin >> throwError e
-        Right a -> mfin >> pure a
+    mfin
+    liftEither x
 
 unwrap :: Maybe a -> Tester a
 unwrap = maybe (throwError TestUnknownError) pure
@@ -44,25 +44,25 @@ data Language = Haskell | C | Cpp | Python
 
 options :: Language -> String -> (String, [String], [String], [String])
 options lang filename = (source, compile lang, run lang, clean lang)
-    where source = addExtension filename $ ext lang
+    where source = filename & extension .~ ext lang
 
           ext Haskell = "hs"
-          ext C = "c"
-          ext Cpp = "cpp"
-          ext Python = "py"
+          ext C       = "c"
+          ext Cpp     = "cpp"
+          ext Python  = "py"
 
           compile Haskell = ["ghc", "-o", filename, source]
-          compile C = ["gcc", "-o", filename, source]
-          compile Cpp = ["g++", "-o", filename, source]
-          compile Python = []
+          compile C       = ["gcc", "-o", filename, source]
+          compile Cpp     = ["g++", "-o", filename, source]
+          compile Python  = []
 
           run Python = ["python3", source]
-          run _ = ["./" ++ filename]
+          run _      = ["./" ++ filename]
 
-          clean Haskell = [filename, addExtension filename "o", addExtension filename "hi", source]
-          clean C = [filename, source]
-          clean Cpp = [filename, source]
-          clean Python = [source]
+          clean Haskell = [filename, filename & extension .~ "o", filename & extension .~ "hi", source]
+          clean C       = [filename, source]
+          clean Cpp     = [filename, source]
+          clean Python  = [source]
 
 cleanup :: [String] -> Tester ()
 cleanup = mapM_ $ liftIO . tryError . removeFile
@@ -101,7 +101,7 @@ test input lang tests = do
                 handles <- liftIO $ createProcess process
 
                 let handle = handles ^. _4
-                stdin <- unwrap $ handles ^. _1
+                stdin  <- unwrap $ handles ^. _1
                 stdout <- unwrap $ handles ^. _2
 
                 exitCode <- liftIO $ hPutStrLn stdin (t ^. _input) >> hClose stdin >> waitForProcess handle

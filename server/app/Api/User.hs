@@ -3,12 +3,14 @@
 
 module Api.User where
 
+import Prelude hiding (exp)
 import Control.Monad
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Control.Lens
 import Data.ByteString.Lens
 import Data.Text.Lens
+import Data.Time.Clock.POSIX
 import qualified Data.Map as M
 import Data.Aeson.Lens
 import System.Environment
@@ -29,14 +31,17 @@ type UserApi = "api" :> "register" :> ReqBody '[JSON] VUser :> Post '[JSON] VRes
 
 generateToken :: Int -> IO String
 generateToken userId = do
-    secret <- liftIO $ getEnv "JWT_SECRET"
     let payload = [("userId", userId)] & traverse . _1 %~ view packed
                                        & traverse . _2 %~ review _JSON
-        claims = mempty { unregisteredClaims = ClaimsMap $ M.fromList payload
-                        }
-        token = encodeSigned (EncodeHMACSecret $ secret ^. packedChars) mempty claims
 
-    pure $ token ^. unpacked
+    exp <- (+3600) <$> liftIO getPOSIXTime
+    
+    let claims = mempty { exp = numericDate exp
+                        , unregisteredClaims = ClaimsMap $ M.fromList payload
+                        }
+    
+    secret <- liftIO $ getEnv "JWT_SECRET"
+    pure $ encodeSigned (EncodeHMACSecret $ secret ^. packedChars) mempty claims ^. unpacked
 
 userService :: ServerT UserApi DB
 userService = regH :<|> loginH
