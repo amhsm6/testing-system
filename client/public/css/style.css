@@ -15,7 +15,7 @@ a {
     background-color: #ccc;
 }
 
-#header a {
+#header > a {
     padding-bottom: 5px;
     border-bottom: 2px solid black;
     font-size: 1.5em;
@@ -23,7 +23,7 @@ a {
     transition: all 0.5s;
 }
 
-#header a:hover {
+#header > a:hover {
     border-bottom: 2px solid gray;
     color: gray;
     cursor: default;
@@ -44,14 +44,14 @@ a {
     margin-top: 40px;
 }
 
-.course a {
+.course > a {
     padding-bottom: 5px;
     font-size: 1.5em;
     color: black;
     transition: all 0.5s;
 }
 
-.course a:hover {
+.course > a:hover {
     color: gray;
     cursor: default;
 }
@@ -86,7 +86,7 @@ a {
     margin-bottom: 30px;
 }
 
-#user-summary span {
+#user-summary > span {
     display: block;
 }
 
@@ -120,7 +120,7 @@ a {
     flex-direction: column;
 }
 
-#user-not-logged-in span {
+#user-not-logged-in > span {
     margin-bottom: 20px;
     text-align: center;
     font-size: 1.1em;
@@ -133,18 +133,18 @@ a {
     align-items: center;
 }
 
-#user-data input {
+#user-data > input {
     width: 90%;
     padding: 3px;
     border: 2px solid black;
     border-radius: 5px;
 }
 
-#user-data input:focus {
+#user-data > input:focus {
     outline: none;
 }
 
-#user-data input:valid {
+#user-data > input:valid {
     border: 2px solid green!important;
 }
 
@@ -199,6 +199,16 @@ a {
     transition: all 0.1s;
 }
 
+#login-errors {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#login-errors > span {
+    color: red;
+}
+
 #content-course {
     display: flex;
     flex-direction: column;
@@ -223,12 +233,12 @@ a {
     float: left;
 }
 
-.navbox button {
+.navbox > button {
     border-radius: 0;
     font-size: 1.5em;
 }
 
-.navbox-active button {
+.navbox-active > button {
     background-color: #aaa;
 }
 
@@ -299,7 +309,7 @@ a {
     background-color: #ccc;
 }
 
-#upload-log span {
+#upload-log > span {
     display: block;
     font-size: 1.1em;
     white-space: pre-line;
@@ -310,7 +320,7 @@ a {
     background-color: green;
 }
 
-#problem-status span {
+#problem-status > span {
     font-size: 1.3em;
 }
 

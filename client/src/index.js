@@ -1,16 +1,6 @@
 import { jwtDecode } from "jwt-decode"
 
 onload = async () => {
-    const emailInput = document.querySelector("#user-data-email");
-    const passInput = document.querySelector("#user-data-pass");
-
-    const cleanInputs = () => {
-        emailInput.value = null;
-        passInput.value = null;
-    };
-
-    cleanInputs();
-
     const link = document.querySelector("#header a[href = '/']");
     link.style.color = "gray";
     link.style.borderBottom = "2px solid gray";
@@ -32,16 +22,58 @@ onload = async () => {
         );
     });
 
+    const renderUserData = () => {
+        document.querySelector("#user-logged-in").style.display = "";
+        document.querySelector("#user-not-logged-in").style.display = "none";
+    };
+
+    const emailInput = document.querySelector("#user-data-email");
+    const passInput = document.querySelector("#user-data-pass");
+
+    const cleanInputs = () => {
+        emailInput.value = null;
+        emailInput.style.border = "2px solid black";
+
+        passInput.value = null;
+        passInput.style.border = "2px solid black";
+    };
+
+    const renderLoginForm = () => {
+        cleanInputs();
+
+        document.querySelector("#user-logged-in").style.display = "none";
+        document.querySelector("#user-not-logged-in").style.display = "";
+    };
+
+    const token = localStorage.getItem("token");
+    if (token) { renderUserData(); } else { renderLoginForm(); }
+
+    const logoutButton = document.querySelector("#logout-btn");
+    logoutButton.onclick = _ => {
+        localStorage.removeItem("token");
+        renderLoginForm();
+    };
+
+    const loginErrors = document.querySelector("#login-errors");
+
+    emailInput.oninput = _ => loginErrors.replaceChildren();
+    passInput.oninput = _ => loginErrors.replaceChildren();
+
     const loginButton = document.querySelector("#login-btn");
     loginButton.onclick = async _ => {
+        let invalid = false;
+
         if (!emailInput.validity.valid) {
             emailInput.style.border = "2px solid red";
-            return;
+            invalid = true;
         }
+
         if (!passInput.validity.valid) {
             passInput.style.border = "2px solid red";
-            return;
+            invalid = true;
         }
+
+        if (invalid) { return; }
 
         const resp = await fetch("/api/login", {
             method: "POST",
@@ -53,28 +85,63 @@ onload = async () => {
         cleanInputs();
 
         if (data.ok) {
-            console.log(data.token);
+            localStorage.setItem("token", data.token);
+            renderUserData();
         } else {
             if (data.err.errorCode == 1) {
-                console.log("Wrong credentials")
+                loginErrors.insertAdjacentHTML(
+                    "beforeend",
+                    `<span>Wrong Credentials</span>`
+                );
             } else {
-                console.error("error: unknown error code");
+                loginErrors.insertAdjacentHTML(
+                    "beforeend",
+                    `<span>Unknown Error</span>`
+                );
             }
         }
     };
 
     const regButton = document.querySelector("#reg-btn");
     regButton.onclick = async _ => {
-        if (!emailInput.validity.valid || !passInput.validity.valid) { return; }
+        /*let invalid = false;
 
-        /*const resp = await fetch("/api/register", {
+        if (!emailInput.validity.valid) {
+            emailInput.style.border = "2px solid red";
+            invalid = true;
+        }
+
+        if (!passInput.validity.valid) {
+            passInput.style.border = "2px solid red";
+            invalid = true;
+        }
+
+        if (invalid) { return; }
+
+        const resp = await fetch("/api/register", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email: emailInput.value, pass: passInput.value })
         });
-        console.log(resp);
-        console.log(await resp.json());
+        const data = await resp.json();
 
-        cleanInputs();*/
+        cleanInputs();
+
+        if (data.ok) {
+            localStorage.setItem("token", data.token);
+            renderUserData();
+        } else {
+            if (data.err.errorCode == 1) {
+                loginErrors.insertAdjacentHTML(
+                    "beforeend",
+                    `<span>Wrong Credentials</span>`
+                );
+            } else {
+                loginErrors.insertAdjacentHTML(
+                    "beforeend",
+                    `<span>Unknown Error</span>`
+                );
+            }
+        }*/
     };
 }

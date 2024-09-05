@@ -28,6 +28,7 @@ import DB.User
 
 type UserApi = "api" :> "register" :> ReqBody '[JSON] VUser :> Post '[JSON] VRespReg
           :<|> "api" :> "login" :> ReqBody '[JSON] VUser :> Post '[JSON] VRespLogin
+          :<|> "api" :> "userinfo" :> RequestHeader
 
 generateToken :: Int -> IO String
 generateToken userId = do
@@ -50,7 +51,7 @@ userService = regH :<|> loginH
                   callCC $ \resp -> do
                       let (email, pass) = body ^. _VUser
 
-                      lift (getUser email) >>= \x -> when (has _Just x) $ resp RegEmailInUse
+                      lift (getUserByEmail email) >>= \x -> when (has _Just x) $ resp RegEmailInUse
 
                       res <- liftIO $ hashPasswordUsingPolicy fastBcryptHashingPolicy $ pass ^. packedChars
                       hashed <- maybe (lift $ throwError err500) (pure . view unpackedChars) res
@@ -65,7 +66,7 @@ userService = regH :<|> loginH
                   callCC $ \resp -> do
                       let (email, pass) = body ^. _VUser
 
-                      user <- lift (getUser email) >>= maybe (resp LoginWrongCredentials) pure
+                      user <- lift (getUserByEmail email) >>= maybe (resp LoginWrongCredentials) pure
 
                       unless (validatePassword (user ^. _pass . packedChars) (pass ^. packedChars)) $ do
                           void $ resp LoginWrongCredentials

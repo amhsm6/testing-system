@@ -16,8 +16,21 @@ data User = User { __userId :: Int
 
 makeLenses ''User
 
-getUser :: String -> DB (Maybe User)
-getUser email = do
+getUser :: Int -> DB (Maybe User)
+getUser userId = do
+    c <- ask
+    row <- liftIO $ do
+        st <- prepare c "SELECT email, password FROM users WHERE user_id = ?"
+        execute st [toSql userId]
+        fetchRow st
+
+    case row of
+        Just [email, pass] -> pure $ Just $ User userId (fromSql email) (fromSql pass)
+        Nothing -> pure Nothing
+        _ -> throwError err500
+
+getUserByEmail :: String -> DB (Maybe User)
+getUserByEmail email = do
     c <- ask
     row <- liftIO $ do
         st <- prepare c "SELECT user_id, password FROM users WHERE email = ?"

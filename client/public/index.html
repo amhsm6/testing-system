@@ -16,7 +16,7 @@
             <span><strong>User Info</strong></span>
             <div id="user-info-card">
                 <div id="user-logged-in" style="display: none">
-                    <span id="user-email">Email: alexandra.yanikova@gmail.com</span>
+                    <span id="user-email">Email: test@gmail.com</span>
                     <div id="user-summary">
                         <span id="solved-problems">Solved Problems: 1509</span>
                         <span id="attempted-problems">Attempted Problems: 1509</span>
@@ -26,7 +26,7 @@
                     </div>
                 </div>
 
-                <div id="user-not-logged-in">
+                <div id="user-not-logged-in" style="display: none">
                     <span>You haven't logged in to the system</span>
                     <form id="user-data">
                         <input id="user-data-email" type="email" placeholder="Enter Email" name="email" required />
@@ -36,6 +36,7 @@
                         <button id="login-btn">Login</button>
                         <button id="reg-btn">Register</button>
                     </div>
+                    <div id="login-errors"></div>
                 </div>
             </div>
         </div>
