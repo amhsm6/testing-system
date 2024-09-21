@@ -28,7 +28,6 @@ import DB.User
 
 type UserApi = "api" :> "register" :> ReqBody '[JSON] VUser :> Post '[JSON] VRespReg
           :<|> "api" :> "login" :> ReqBody '[JSON] VUser :> Post '[JSON] VRespLogin
-          :<|> "api" :> "userinfo" :> RequestHeader
 
 generateToken :: Int -> IO String
 generateToken userId = do

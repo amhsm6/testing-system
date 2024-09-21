@@ -23,5 +23,5 @@ server = testService :<|> courseService :<|> userService
 main :: IO ()
 main = do
     loadFile defaultConfig
-    putStrLn "Server is running on port 1509"
-    run 1509 $ serve api $ hoistServer api runDB server
+    putStrLn "Server is running on port 3000"
+    run 3000 $ serve api $ hoistServer api runDB server

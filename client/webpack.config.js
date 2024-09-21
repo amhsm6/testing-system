@@ -15,11 +15,11 @@ module.exports = {
         proxy: [
             {
                 context: ["/api"],
-                target: "http://127.0.0.1:1509"
+                target: "http://127.0.0.1:3000"
             },
             {
                 context: ["/api/submit"],
-                target: "ws://127.0.0.1:1509",
+                target: "ws://127.0.0.1:3000",
                 ws: true
             },
             {
